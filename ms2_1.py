@@ -1,99 +1,54 @@
-#output file that organizes matching results for each scan
-import streamlit as st  # allows for building web application
-import matplotlib.pyplot as plt  # allows for plotting
-# from matplotlib.ticker import ScalarFormatter
-import pandas as pd  # allows for data handling
-import numpy as np  # allows for numerical operations
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt 
 import spectrum_utils.plot as sup
 import spectrum_utils.spectrum as sus
 import plotly.tools as tls
-import requests
 import json
+import requests
 import io
+import time
 import urllib.parse
 from urllib.parse import urlparse, parse_qs, unquote, urlencode
 from xlsxwriter import Workbook
+from multiprocessing import Pool, cpu_count
+
 LIBRARIES = ["gnpsdata_index", "ORNL_Bioscales2", "ORNL_Populus_LC_MSMS", "gnpsdata_test_index", "gnpslibrary", "massivedata_index", "massivekb_index", "metabolomicspanrepo_index_latest", "metabolomicspanrepo_index_nightly", "panrepo_2024_11_12"]
 
-@st.cache_data
-def fetch_spectrum_data(usi):
-    url = f"https://metabolomics-usi.gnps2.org/json/?usi1="
-
-    usi = usi.replace(":", "%3A")
-    url += usi
-
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        st.error(f"Failed to fetch spectrum data: {e}")
-        return None
-
-# @st.cache_data
-# def create_mirror_plot(scan_mz, scan_intensity, scan_precursor_mz, scan_charge, scan_id,
-#                        usi_mz, usi_intensity, usi_precursor_mz, usi_charge, usi_id):
-#     # Create spectrum objects
-#     scan_spectrum = sus.MsmsSpectrum(
-#         identifier=f"Scan {scan_id}",
-#         precursor_mz=scan_precursor_mz,
-#         precursor_charge=scan_charge,
-#         mz=scan_mz,
-#         intensity=scan_intensity
-#     )
-#     usi_spectrum = sus.MsmsSpectrum(
-#         identifier=usi_id,
-#         precursor_mz=usi_precursor_mz,
-#         precursor_charge=usi_charge,
-#         mz=usi_mz,
-#         intensity = usi_intensity
-#     )
-
-#     # Create figure and axis
-#     fig, ax = plt.subplots(figsize=(10, 6))
-
-#     # Generate the mirror plot using spectrum_utils.plot.mirror()
-#     sup.mirror(spec_top=scan_spectrum, spec_bottom=usi_spectrum, ax=ax)
-
-#     ax.xaxis.set_major_formatter(ScalarFormatter())
-#     ax.yaxis.set_major_formatter(ScalarFormatter())
-#     # Convert to Plotly for Streamlit
-#     try:
-#         plotly_fig = tls.mpl_to_plotly(fig)
-#         plotly_fig.update_traces(hoverinfo="x+y")
-#     except Exception as e:
-#         st.error(f"Failed to create mirror plot: {e}")
-#         plotly.fig = None
-
-#     plt.close(fig)
-
-#     return plotly_fig
-    
-@st.cache_data
-def create_link(peaks, precursor_mz, charge, library_select): #creates json decoded
+def generate_webAPI(peaks, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold):
     base_url = "https://fasst.gnps2.org/search"
+    
     query_spectrum = {
-        "n_peaks":len(peaks),
-        "peaks":peaks,
-        "precursor_charge":charge,
-        "precursor_mz":precursor_mz
+        "n_peaks": len(peaks),
+        "peaks": peaks,
+        "precursor_charge": charge,
+        "precursor_mz": precursor_mz
     }
 
     query_spectrum_json = json.dumps(query_spectrum)
     
     payload = {
-        "usi": None, 
         "library": library_select,
+        "analog": "Yes" if analog_select == "Yes" else "No",
+        "cache": "Yes" if cache_select == "Yes" else "No", 
+        "lower_delta": delta_mass_below,
+        "upper_delta": delta_mass_above,
+        "pm_tolerance": pm_tolerance,
+        "fragment_tolerance": fragment_tolerance,
+        "cosine_threshold": cosine_threshold,
         "query_spectrum": query_spectrum_json,
     }
     
-    # Manually construct the query string.
-    query_string = "&".join(f"{key}={urllib.parse.quote_plus(str(value), safe='[]{}:,')}" for key, value in payload.items())
-    query_string = query_string.replace("+", "")
-    full_url = f"{base_url}?{query_string}"
-    
-    return full_url
+    try:
+        response = requests.post(base_url, data=payload)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"API request failed: {e}")
+        return None
 
+@st.cache_data
 def gnps_input_link(mz, intensity, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold):
     base_url = "http://fasst.gnps2.org/fastsearch/?"
 
@@ -118,43 +73,7 @@ def gnps_input_link(mz, intensity, precursor_mz, charge, library_select, analog_
 
     return final_url
 
-@st.cache_data
-def generate_webAPI(peaks, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold):
-
-    base_url = "https://fasst.gnps2.org/search"
-    
-    # Build the query spectrum in the expected JSON format.
-    query_spectrum = {
-        "n_peaks": len(peaks),
-        "peaks": peaks,
-        "precursor_charge": charge,
-        "precursor_mz": precursor_mz
-    }
-
-    query_spectrum_json = json.dumps(query_spectrum)
-    
-    # Build the payload following the CLI code logic.
-    payload = {
-        "library": library_select,
-        "analog": "Yes" if analog_select == "Yes" else "No",
-        "cache": "Yes" if cache_select == "Yes" else "No", 
-        "lower_delta": delta_mass_below,
-        "upper_delta": delta_mass_above,
-        "pm_tolerance": pm_tolerance,
-        "fragment_tolerance": fragment_tolerance,
-        "cosine_threshold": cosine_threshold,
-        "query_spectrum": query_spectrum_json,
-    }
-    
-    try:
-        response = requests.post(base_url, data=payload)
-        response.raise_for_status()
-        return response.json() # Return the API response as a dictionary
-    except requests.exceptions.RequestException as e:
-        st.error(f"API request failed: {e}")
-        return None
-
-@st.cache_data
+@st.cache_resource
 def peak_filtering(user_scan):
     mz_array = user_scan["m/z data"]
     intensity_array = user_scan["intensity data"]
@@ -162,7 +81,6 @@ def peak_filtering(user_scan):
     filtered_intensities = []
     pepmass_val = float(user_scan["PEPMASS Number"])
 
-    # Basic peak filtering.
     for i, mz in enumerate(mz_array):
         peak_range = [j for j in range(len(mz_array)) if abs(mz_array[j] - mz) <= 25]
         sorted_range = sorted(peak_range, key=lambda j: intensity_array[j], reverse=True)
@@ -174,12 +92,13 @@ def peak_filtering(user_scan):
     sqrt_data, normalized_data = peak_normalizing(filtered_intensities)
     return filtered_mz, sqrt_data, normalized_data
 
-@st.cache_data  
+@st.cache_resource 
 def peak_normalizing(filtered_intensities):
     normalized_intensities = np.copy(filtered_intensities) / np.linalg.norm(filtered_intensities)
     sqrt_intensities = np.sqrt(normalized_intensities)
     return sqrt_intensities, normalized_intensities
 
+@st.cache_data
 def peak_visual(mzs, intensities, scanNum, pepmass, charge):
     spectrum = sus.MsmsSpectrum(mz=mzs, intensity=intensities, identifier=scanNum, precursor_mz=pepmass, precursor_charge=charge)
     sup.spectrum(spectrum)
@@ -191,12 +110,11 @@ def peak_visual(mzs, intensities, scanNum, pepmass, charge):
     plotly_fig.update_traces(hoverinfo="x+y")
     st.plotly_chart(plotly_fig)
 
-@st.cache_data
-def read_mgf_file(mgf_file):
+@st.cache_resource
+def read_file(mgf_file):
     scans = [] 
     current_scan = None
     scan_numbers = []
-    all_results = []
 
     file = mgf_file.read().decode('utf-8').splitlines()
     for line in file:
@@ -206,27 +124,6 @@ def read_mgf_file(mgf_file):
         elif line == "END IONS":
             if current_scan:
                 scans.append(current_scan)
-
-                for library in LIBRARIES:
-                    api_response = generate_webAPI(
-                        peaks = current_scan["peaks"],
-                        precursor_mz=current_scan["PEPMASS Number"],
-                        charge=current_scan["Charge State"],
-                        library_select=library,
-                        analog_select="No",  # Default value
-                        cache_select="Yes",  # Default value
-                        delta_mass_below=130,
-                        delta_mass_above=200,
-                        pm_tolerance=0.05,
-                        fragment_tolerance=0.05,
-                        cosine_threshold=0.7
-                    )
-                    if api_response and "results" in api_response:
-                        for result in api_response["results"]:
-                            # Add scan number and library to each result
-                            result["Scan Number"] = current_scan["Scan Number"]
-                            result["Library"] = library
-                            all_results.append(result)
                 current_scan = None
         elif current_scan is not None:
             if "=" in line:
@@ -258,63 +155,106 @@ def read_mgf_file(mgf_file):
                     print(f"Skipping unreadable data in line: '{line}")
                     continue
 
+    return scan_numbers, scans
 
-    
-    return scans, scan_numbers, all_results
+def process_scan_library(args):
+    scan, library = args
+    try:
+        api_response = generate_webAPI(
+            peaks=scan["peaks"],
+            precursor_mz=scan["PEPMASS Number"],
+            charge=scan["Charge State"],
+            library_select=library,
+            analog_select="No",
+            cache_select="Yes",
+            delta_mass_below=130,
+            delta_mass_above=200,
+            pm_tolerance=0.05,
+            fragment_tolerance=0.05,
+            cosine_threshold=0.7
+        )
+        if api_response and "results" in api_response:
+            for result in api_response["results"]:
+                result["Scan Number"] = scan["Scan Number"]
+                result["Library"] = library
+            return api_response["results"]
+    except Exception as e:
+        print(f"Error processing scan {scan['Scan Number']} with library {library}: {e}")
+    return []
+
+def process_scans_in_parallel(scans):
+    """
+    Function to process all scans against all libraries in parallel.
+    This function should not use Streamlit functions.
+    """
+    all_results = []
+    tasks = [(scan, library) for scan in scans for library in LIBRARIES]
+
+    with Pool(processes=cpu_count()) as pool:
+        results = pool.map(process_scan_library, tasks)
+
+    for result in results:
+        all_results.extend(result)
+
+    return all_results
 
 if __name__ == "__main__":
-    st.title("MS2 Scan Analyzer")  # App title
+    st.title("MS2 Scan Analyzer")
 
     mgf_file = st.file_uploader("Choose a file", type="mgf")
     
     if mgf_file is not None:
-        scans, scan_nums, matching_results = read_mgf_file(mgf_file)
-        if not scans:
+        scan_numbers, scan_metadata = read_file(mgf_file)
+        if not scan_metadata:
             st.error("No scans found in the uploaded MGF file.")
         else:
 
-        #Download button for all matching libraries
-            if matching_results:
-                results_df = pd.DataFrame(matching_results)
-                desired_columns = ["Scan Number", "Library", "Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
-                results_df = results_df[desired_columns]
+            if st.button("Generate GNPS Results for all scans in CSV File"):
+                # Start the timer
+                start_time = time.time()
 
-                # Save the results to an Excel file
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                    results_df.to_excel(writer, index=False, sheet_name="GNPS Results")
+                # Use st.spinner only in the main thread
+                with st.spinner("Processing scans..."):
+                    matching_results = process_scans_in_parallel(scan_metadata)
 
-                    # Group by scan and library for better organization
-                    grouped = results_df.groupby("Scan Number")
-                    for scan_number, group in grouped:
-                        sheet_name = f"Scan{scan_number}"
-                        group.to_excel(writer, index=False, sheet_name=sheet_name)
+                # Stop the timer
+                end_time = time.time()
+                elapsed_time = end_time - start_time
 
-                #Excel file as a downloadable file
-                st.download_button(
-                    label="Download GNPS Results",
-                    data=output.getvalue(),
-                    file_name="gnps_results.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )    
+                if matching_results:
+                    results_df = pd.DataFrame(matching_results)
+                    desired_columns = ["Scan Number", "Library", "Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
+                    
+                    # Add missing columns (if any) with default NaN values.
+                    missing_cols = set(desired_columns) - set(results_df.columns)
+                    for col in missing_cols:
+                        results_df[col] = np.nan
+                    
+                    # Reorder the DataFrame columns.
+                    results_df = results_df[desired_columns]
+                    
+                    # Convert the DataFrame to CSV format encoded in UTF-8.
+                    csv_data = results_df.to_csv(index=False).encode('utf-8')
+                    
+                    st.download_button(
+                        label="Download GNPS Results in CSV File",
+                        data=csv_data,
+                        file_name="gnps_results.csv",
+                        mime="text/csv"
+                    )
+                    
+                    st.success(f"File created successfully in {elapsed_time:.2f} seconds!")
 
-            # Create a DataFrame showing scan metadata.
-            df = pd.DataFrame(scans, columns=["Scan Number", "Spectrum ID", "PEPMASS Number", "Charge State", "SMILES ID"])
-            
-            # Display the DataFrame in an expander.
+            df = pd.DataFrame(scan_metadata, columns=["Scan Number", "Spectrum ID", "PEPMASS Number", "Charge State", "SMILES ID"])
             with st.expander("Show Scan Numbers and Metadata"):
                 st.dataframe(df)
 
-            # Dropdown menu for selecting a scan number.
-            scan_input = st.selectbox("Select Scan Number to view MS2 Spectrum", options=scan_nums)
-                        
+            scan_input = st.selectbox("Select Scan Number to view MS2 Spectrum", options=scan_numbers)
+
             if scan_input:
-                user_scan = next((scan for scan in scans if scan["Scan Number"] == scan_input), None)
-                if user_scan is None:
-                    st.error("Selected scan not found.")
-                else:
-                    mz_filtered, sqrt_filtered, normal_filtered = peak_filtering(user_scan)
-                    
+                user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
+                mz_filtered, sqrt_filtered, normal_filtered = peak_filtering(user_scan)
+                
                 with st.expander("View Spectrum", expanded = False):
                     spectrum_option = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum - Normalized", "Filtered Spectrum - Square Root Normalized"])
                     with spectrum_option[0]:
@@ -429,4 +369,3 @@ if __name__ == "__main__":
                                 st.error(f"Could not retrieve spectrum data for the selected USI: {e}")     
                         else:
                             st.error("NO RESULT")
-                                                       

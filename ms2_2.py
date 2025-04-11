@@ -1,5 +1,4 @@
-#output file
-#runs using multiprocessing
+#output file that organizes matching results for each scan
 import streamlit as st  # allows for building web application
 import matplotlib.pyplot as plt  # allows for plotting
 # from matplotlib.ticker import ScalarFormatter
@@ -14,7 +13,6 @@ import io
 import urllib.parse
 from urllib.parse import urlparse, parse_qs, unquote, urlencode
 from xlsxwriter import Workbook
-from multiprocessing import Pool, cpu_count
 LIBRARIES = ["gnpsdata_index", "ORNL_Bioscales2", "ORNL_Populus_LC_MSMS", "gnpsdata_test_index", "gnpslibrary", "massivedata_index", "massivekb_index", "metabolomicspanrepo_index_latest", "metabolomicspanrepo_index_nightly", "panrepo_2024_11_12"]
 
 @st.cache_data
