@@ -16,6 +16,20 @@ from multiprocessing import Pool, cpu_count
 
 LIBRARIES = ["gnpsdata_index", "ORNL_Bioscales2", "ORNL_Populus_LC_MSMS", "gnpsdata_test_index", "gnpslibrary", "massivedata_index", "massivekb_index", "metabolomicspanrepo_index_latest", "metabolomicspanrepo_index_nightly", "panrepo_2024_11_12"]
 
+def create_mirror_plot(spectrum_top, spectrum_bottom):
+    try:
+        # Create the mirror plot
+        fig, ax = plt.subplots(figsize=(12, 6))
+        sup.mirror(spectrum_top, spectrum_bottom, ax=ax)
+        ax.set_title("Top: User Scan, Bottom: Selected USI", fontsize=16)
+
+        # Display the plot in Streamlit
+        st.pyplot(fig)
+        
+
+    except Exception as e:
+        st.error(f"Failed to create mirror plot: {e}")
+
 def generate_webAPI(peaks, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold):
     base_url = "https://fasst.gnps2.org/search"
     
@@ -48,7 +62,6 @@ def generate_webAPI(peaks, precursor_mz, charge, library_select, analog_select, 
         st.error(f"API request failed: {e}")
         return None
 
-@st.cache_data
 def gnps_input_link(mz, intensity, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold):
     base_url = "http://fasst.gnps2.org/fastsearch/?"
 
@@ -157,8 +170,8 @@ def read_file(mgf_file):
 
     return scan_numbers, scans
 
-def process_scan_library(args):
-    scan, library = args
+def process_scan_library(values):
+    scan, library = values
     try:
         api_response = generate_webAPI(
             peaks=scan["peaks"],
@@ -183,10 +196,6 @@ def process_scan_library(args):
     return []
 
 def process_scans_in_parallel(scans):
-    """
-    Function to process all scans against all libraries in parallel.
-    This function should not use Streamlit functions.
-    """
     all_results = []
     tasks = [(scan, library) for scan in scans for library in LIBRARIES]
 
@@ -267,7 +276,7 @@ if __name__ == "__main__":
                         peak_visual(mz_filtered, sqrt_filtered,
                                     str(user_scan["Scan Number"]), user_scan["PEPMASS Number"], user_scan["Charge State"])
                 
-                with st.expander(f"GNPS FASTSearch for Scan {user_scan['Scan Number']}", expanded = False):
+                with st.expander(f"GNPS FASTSearch for Scan {user_scan['Scan Number']}"):
                     precursor_mz = user_scan["PEPMASS Number"]
                     charge = user_scan["Charge State"]
                     col1, col2, col3 = st.columns(3)
@@ -285,87 +294,100 @@ if __name__ == "__main__":
                         fragment_tolerance = st.number_input("Fragment Mass Tolerance (Da)", min_value=0.0, value=0.05, step=0.05, key="fragment_tolerance")
                         cosine_threshold = st.number_input("Cosine Similarity Threshold", min_value=0.0, max_value=1.0, value=0.7, step=0.05, key="cosine_threshold")
                     
-                    if st.button("Generate GNPS FASTSearch API"):
-                        # Choose peaks based on user selection.
-                        # if peak_select == "Normalized Peaks":
-                        #     peaks = [(mz_filtered[i], normal_filtered[i]) for i in range(len(mz_filtered))]
-                        # elif peak_select == "Square Root Peaks":
-                        #     peaks = [(mz_filtered[i], sqrt_filtered[i]) for i in range(len(mz_filtered))]
-                        # else:
-                        # if len(user_scan["peaks"]) > 100:
-                        #     peaks = list(format_peaks(user_scan["peaks"]))
-                        # else:
-                        #     peaks = user_scan["peaks"]
+                    peaks = user_scan["peaks"]
+                    mz = user_scan["m/z data"]
+                    intensity = user_scan["intensity data"]
+                    api_response = generate_webAPI(peaks, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold)
+                    
 
-                        peaks = user_scan["peaks"]
-                        mz = user_scan["m/z data"]
-                        intensity = user_scan["intensity data"]
-                        # Call the FASTSearch API using the incorporated code.
-                        api_response = generate_webAPI(peaks, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold)
-                        #Takes user to GNPS FASTSEARCH
+                    if st.button("Generate GNPS FASTSearch Link"):
                         gnpsLink = gnps_input_link(mz, intensity, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold)
-                        
+                        st.write("GNPS Input Link Created with Scan Data!")
+                        st.markdown(f"[Go to GNPS Link]({gnpsLink})", unsafe_allow_html=True)
+
+                    # Display results if they exist (either from current run or previous run)
+                    if api_response and "results" in api_response:
         
-                        
-                        # Display results if they exist (either from current run or previous run)
-                        if api_response and "results" in api_response:
-                            st.write("GNPS Input Link Created with Scan Data!")
-                            st.markdown(f"[Go to GNPS Link]({gnpsLink})", unsafe_allow_html=True)
-                            try: 
-                                st.subheader("Matching Results")
-                                results_df = pd.DataFrame(api_response["results"])
-                                desired_columns = ["Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
-                                results_df = results_df[desired_columns]
-                                st.dataframe(results_df)
-                                
-                                # #USI selection for Spectrum Exploration
-                                # st.subheader("Metabolomics Resolver Spectrum Viewer")
-                                # usi_list = results_df["USI"].tolist()
-                                # selected_usi = st.selectbox("Select a USI for Spectrum Exploration", usi_list,  key="usi_selector")
-                                
-                                # if selected_usi:
-                                #     spectrum_data = fetch_spectrum_data(selected_usi)
+                        try: 
+                            st.subheader("Matching Results")
+                            results_df = pd.DataFrame(api_response["results"])
+                            desired_columns = ["Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
+                            results_df = results_df[desired_columns]
+                            st.dataframe(results_df)
+                            
+                            #USI selection for Spectrum Exploration
+                            st.subheader("Metabolomics Resolver Spectrum Viewer")
+                            usi_list = results_df["USI"].tolist()
+                            selected_usi = st.selectbox("Select a USI for Spectrum Exploration", usi_list,  key="usi_selector")
+                            
+                            if selected_usi:
+                                spectrum_tabs = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum"])
+                                with spectrum_tabs[0]:
+                                    st.write("Mirror Plot: Unfiltered Peaks")
+                                    try:
+                                        # Convert the Scan Number to a string for the identifier
+                                        spectrum_top = sus.MsmsSpectrum(
+                                            mz=user_scan["m/z data"],
+                                            intensity=user_scan["intensity data"],
+                                            identifier=str(user_scan["Scan Number"]),
+                                            precursor_mz=user_scan["PEPMASS Number"],
+                                            precursor_charge=user_scan["Charge State"]
+                                        )
 
+                                        # Fetch the spectrum for the selected USI
+                                        spectrum_bottom = sus.MsmsSpectrum.from_usi(
+                                            selected_usi,
+                                            precursor_mz=user_scan["PEPMASS Number"],
+                                            precursor_charge=user_scan["Charge State"]
+                                        )
+                                        create_mirror_plot(spectrum_top, spectrum_bottom)
+                                    except Exception as e:
+                                        st.error(f"Failed to create unfiltered mirror plot: {e}")
 
-                                #     if spectrum_data and "peaks" in spectrum_data:
-                                #         spectrum_tabs = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum"])
-                                #         usi_mz = []
-                                #         usi_intensity = []
+                                # Filtered Spectrum Tab
+                                with spectrum_tabs[1]:
+                                    st.write("Mirror Plot: Filtered Peaks")
+                                    try:
+                                        # Create the filtered top spectrum
+                                        spectrum_top = sus.MsmsSpectrum(
+                                            mz=mz_filtered,
+                                            intensity=normal_filtered,
+                                            identifier=str(user_scan["Scan Number"]),
+                                            precursor_mz=user_scan["PEPMASS Number"],
+                                            precursor_charge=user_scan["Charge State"]
+                                        )
 
-                                #         for peak in spectrum_data["peaks"]:
-                                #             usi_mz.append(peak[0])
-                                #             usi_intensity.append(peak[1])
+                                        # Fetch the spectrum for the selected USI
+                                        spectrum_bottom = sus.MsmsSpectrum.from_usi(
+                                            selected_usi,
+                                            precursor_mz=user_scan["PEPMASS Number"],
+                                            precursor_charge=user_scan["Charge State"]
+                                        )
 
-                                #         # usi_mz_filtered, usi_normal_filtered, usi_sqrt_filtered = peak_filtering()
-                                #         with spectrum_tabs[0]:
-                                #             plotly_fig = create_mirror_plot(
-                                #             scan_mz = user_scan["m/z data"],
-                                #             scan_intensity = user_scan["intensity data"],
-                                #             scan_charge = user_scan["Charge State"],
-                                #             scan_precursor_mz = user_scan["PEPMASS Number"],
-                                #             scan_id = user_scan["Scan Number"],
-                                #             usi_mz = usi_mz,
-                                #             usi_intensity = usi_intensity,
-                                #             usi_charge = spectrum_data["precursor_charge"],
-                                #             usi_precursor_mz = spectrum_data["precursor_mz"],
-                                #             usi_id = str(selected_usi)
-                                #             )
-                                #             st.plotly_chart(plotly_fig)
-                                #         # with spectrum_tabs[1]:
-                                #         #     scan_mz = mz_filtered
-                                #         #     scan_intensity = normal_filtered
-                                #         #     scan_charge = user_scan["Charge State"] 
-                                #         #     scan_pepmass = user_scan["PEPMASS Number"]
-                                #         #     scan_id = user_scan["Scan Number"]
-                                #         #     usi_mz = usi_mz_filtered
-                                #         #     usi_intensity = usi_normal_filtered
-                                #         #     usi_charge = spectrum_data['precursor_charge']"]
-                                #         #     usi_pepmass = spectrum_data["precursor_mz"]
-                                #         #     usi_id = selected_usi
-                                #         #     create_mirror_plot(scan_mz, scan_intensity, scan_charge, scan_pepmass, usi_mz, usi_intensity, usi_charge, usi_pepmass)
-                                #     else:
-                                #         st.error("Failed to fetch spectrum data")
-                            except KeyError as e:
-                                st.error(f"Could not retrieve spectrum data for the selected USI: {e}")     
-                        else:
-                            st.error("NO RESULT")
+                                        # Create a temporary dictionary for the USI spectrum
+                                        usi_scan = {
+                                            "m/z data": spectrum_bottom.mz,
+                                            "intensity data": spectrum_bottom.intensity,
+                                            "Scan Number": spectrum_bottom.identifier,
+                                            "PEPMASS Number": spectrum_bottom.precursor_mz,
+                                            "Charge State": spectrum_bottom.precursor_charge
+                                        }
+
+                                        # Filter the USI spectrum using the peak_filtering function
+                                        usi_mz_filtered, usi_sqrt_filtered, usi_normal_filtered = peak_filtering(usi_scan)
+
+                                        # Create the filtered bottom spectrum
+                                        spectrum_bottom = sus.MsmsSpectrum(
+                                            mz=usi_mz_filtered,
+                                            intensity=usi_normal_filtered,
+                                            identifier=str(usi_scan["Scan Number"]),
+                                            precursor_mz=usi_scan["PEPMASS Number"],
+                                            precursor_charge=usi_scan["Charge State"]
+                                        )
+
+                                        # Create the mirror plot
+                                        create_mirror_plot(spectrum_top, spectrum_bottom)
+                                    except Exception as e:
+                                        st.error(f"Failed to create filtered mirror plot: {e}")
+                        except KeyError as e:
+                            st.error(f"Could not retrieve spectrum data for the selected USI: {e}")
