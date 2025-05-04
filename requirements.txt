@@ -9,3 +9,4 @@ json
 urlparse
 parse_qs
 unquote
+pyteomics
