@@ -1,6 +1,6 @@
 # MS2 Scan Analyzer
 
-A Streamlit-based web application for interactive exploration and analysis of tandem mass spectrometry data in MGF or mzML formats. Use both built-in visualization tools and the GNPS FASTSearch database to compare your spectra against public libraries and download comprehensive results.
+A Streamlit-based web application for interactive exploration and analysis of tandem mass spectrometry data from MGF or mzML formats. Use both built-in visualization tools and the GNPS FASTSearch database to compare your spectra against public libraries and download comprehensive results.
 ---
 
 ## Files
