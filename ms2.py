@@ -7,13 +7,10 @@ import spectrum_utils.spectrum as sus
 import plotly.tools as tls
 import json
 import requests
-import io
 import time
 import urllib.parse
-from urllib.parse import urlparse, parse_qs, unquote, urlencode
 from xlsxwriter import Workbook
 from multiprocessing import Pool, cpu_count
-import pymzml
 from pyteomics import mzml
 LIBRARIES = ["gnpsdata_index", "ORNL_Bioscales2", "ORNL_Populus_LC_MSMS", "gnpsdata_test_index", "gnpslibrary", "massivedata_index", "massivekb_index", "metabolomicspanrepo_index_latest", "metabolomicspanrepo_index_nightly", "panrepo_2024_11_12"]
 
@@ -370,7 +367,9 @@ if __name__ == "__main__":
                         desired_columns = ["Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
                         results_df = results_df[desired_columns]
                         st.dataframe(results_df)
-                        
+                    except KeyError as e:
+                        st.error(f"No Matching Results Found")
+                    try:
                         st.subheader("Metabolomics Resolver Spectrum Viewer")
                         usi_list = results_df["USI"].tolist()
                         selected_usi = st.selectbox("Select a USI for Spectrum Exploration", usi_list, key="usi_selector")
