@@ -19,7 +19,7 @@ A Streamlit-based web application for interactive exploration and analysis of ta
 
 - **Interactive Spectrum Visualization**  
   - **Unfiltered Spectrum**: raw m/z vs intensity plot via Plotly.  
-  - **Filtered Spectrum**: remove noise peaks (keep top‐6 peaks in ±25 Da window, exclude precursor), with two normalization options:  
+  - **Filtered Spectrum**: remove noise peaks, with two normalization options:  
     - _Normalized_ (vector‐norm scaling)  
     - _Square‐root normalized_ (enhanced low‐intensity peak visibility).
 
