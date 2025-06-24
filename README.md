@@ -5,6 +5,7 @@ A Streamlit-based web application for interactive exploration and analysis of ma
 
 ## Files
 - Use ms2_main.py with no multiprocessing for downloadable csv file
+- Use ms2_multiprocessing.py for quicker creation of downloadable csv file
 
 ## Features
 
@@ -70,7 +71,7 @@ cd ms2-scan-analyzer
     .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 pip install python-dotenv
-streamlit run ms2_main.py
+streamlit run ms2_main.py (replace ms2_main.py with ms2_multiprocessing for faster csv file creation)
 
 2. Upload an mgf or mzmL file to use the Streamlit App
 
