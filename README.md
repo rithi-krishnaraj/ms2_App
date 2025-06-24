@@ -1,11 +1,10 @@
 # MS2 Scan Analyzer
 
-A Streamlit-based web application for interactive exploration and analysis of tandem mass spectrometry data from MGF or mzML formats. Use both built-in visualization tools and the GNPS FASTSearch database to compare your spectra against public libraries and download comprehensive results.
+A Streamlit-based web application for interactive exploration and analysis of mass spectrometry data from MGF or mzML file formats. Use both visualization tools and the GNPS FASTSearch database to compare your spectra against public libraries and download comprehensive results.
 ---
 
 ## Files
 - Use ms2_main.py with no multiprocessing for downloadable csv file
-- Use ms2_multiprocessing.py for quicker creation of downloadable csv file
 
 ## Features
 
@@ -71,7 +70,7 @@ cd ms2-scan-analyzer
     .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 pip install python-dotenv
-streamlit run ms2_main.py (replace ms2_main.py with ms2_multiprocessing for faster csv file creation)
+streamlit run ms2_main.py
 
 2. Upload an mgf or mzmL file to use the Streamlit App
 
