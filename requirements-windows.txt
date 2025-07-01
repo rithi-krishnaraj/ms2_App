@@ -7,7 +7,5 @@ plotly
 requests
 pyteomics
 xlsxwriter
-pingouin
-kaleido
-openpyxl
+lxml
 pyinstaller==6.6.0
