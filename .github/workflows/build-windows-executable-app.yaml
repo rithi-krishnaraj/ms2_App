@@ -151,7 +151,7 @@ jobs:
 
     - name: Light WiX Installer
       run: |
-        ./wix/light.exe streamlit_exe.wixobj streamlit_exe_files.wixobj -ext WixUIExtension -size:ICE60 -o "${{ env.APP_NAME }}.msi"
+        ./wix/light.exe streamlit_exe.wixobj streamlit_exe_files.wixobj -ext WixUIExtension -sice:ICE60 -o "${{ env.APP_NAME }}.msi" 
             
     - name: Upload Installer
       uses: actions/upload-artifact@v4
