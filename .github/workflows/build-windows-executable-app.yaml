@@ -95,7 +95,6 @@ jobs:
         mkdir SourceDir
         mv dist_folder/* SourceDir
         cp ShowSuccessMessage.vbs SourceDir
-        cp app_icon.ico SourceDir
         echo "Sample License Text" > SourceDir/app_license.rtf
 
     - name: Generate streamlit_exe.wxs
@@ -155,7 +154,7 @@ jobs:
 
     - name: Light WiX Installer
       run: |
-        ./wix/light.exe streamlit_exe.wixobj streamlit_exe_files.wixobj -ext WixUIExtension -o "${{ env.APP_NAME }}.msi" -cultures:en-us -b SourceDir
+        ./wix/light.exe streamlit_exe.wixobj streamlit_exe_files.wixobj -ext WixUIExtension -o "${{ env.APP_NAME }}.msi" -cultures:en-us
         
         
     - name: Upload Installer
