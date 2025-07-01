@@ -7,3 +7,9 @@ plotly
 requests
 pyteomics
 xlsxwriter
+pingouin
+kaleido
+openpyxl
+scikit-posthocs
+scikit-bio
+pyinstaller==6.6.0

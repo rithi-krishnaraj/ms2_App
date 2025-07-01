@@ -50,14 +50,12 @@ jobs:
 
     - name: Create Executable Folder
       run: |
-        mkdir streamlit_exe
-        mv python-${{ env.PYTHON_VERSION }} streamlit_exe
-        cp -r src streamlit_exe
-        cp requirements-windows.txt streamlit_exe
-        cp README.md dist_folder/streamlit_exe
-        cp -r .streamlit streamlit_exe
-        cp ms2_main.py streamlit_exe
-        cp ${{ env.APP_NAME }}.bat streamlit_exe
+        mkdir dist_folder
+        mv python-${{ env.PYTHON_VERSION }} dist_folder/
+        cp -r src dist_folder/
+        cp requirements-windows.txt dist_folder/
+        cp README.md dist_folder/
+        cp "${{ env.APP_NAME }}.bat" dist_folder/
 
     - name: Generate Readme
       shell: bash
