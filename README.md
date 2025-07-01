@@ -5,16 +5,15 @@ This project is a Streamlit application designed for analyzing MS2 scans. It pro
 ## Project Structure
 
 ```
-streamlit-app-builder
-├── src
-│   ├── ms2_main.py          # Main logic for the Streamlit application
-│   └── assets
-│       └── app_icon.ico     # Application icon for Windows
+
+src
+├── ms2_main.py          # Main logic for the Streamlit application
 ├── requirements.txt          # List of dependencies
+├── requirements-windows.txt
 ├── setup.py                  # Packaging configuration
-├── .github
-│   └── workflows
-│       └── build_windows.yml # GitHub Actions workflow for building the app
+.github
+└── workflows
+   └── build_windows.yaml # GitHub Actions workflow for building the app
 └── README.md                 # Project documentation
 ```
 

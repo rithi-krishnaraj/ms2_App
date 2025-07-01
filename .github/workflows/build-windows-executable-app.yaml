@@ -52,8 +52,9 @@ jobs:
       run: |
         mkdir streamlit_exe
         mv python-${{ env.PYTHON_VERSION }} streamlit_exe
-        cp -r assets streamlit_exe
-        cp -r pages streamlit_exe 2>$null || echo "No 'pages' folder found"
+        cp -r src streamlit_exe
+        cp requirements-windows.txt streamlit_exe
+        cp README.md dist_folder/streamlit_exe
         cp -r .streamlit streamlit_exe
         cp ms2_main.py streamlit_exe
         cp ${{ env.APP_NAME }}.bat streamlit_exe
