@@ -63,7 +63,7 @@ jobs:
     - name: Generate Readme
       shell: bash
       run: |
-        cat <<EOF > streamlit_exe/Readme.txt
+        cat <<EOF > dist_folder/ReadME.md
         Welcome to the ${{ env.APP_NAME }} application!
 
         To run the app:
