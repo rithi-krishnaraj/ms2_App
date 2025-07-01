@@ -123,13 +123,9 @@ jobs:
             </Feature>
 
             <Component Id="DesktopShortcutComponent" Guid="B1110000-0000-0000-0000-000000000001" Directory="DesktopFolder">
-              <Shortcut Id="AppShortcut" Name="${{ env.APP_NAME }}" Description="Launch" Target="[AppSubFolder]${{ env.APP_NAME }}.bat" WorkingDirectory="AppSubFolder" Icon="AppIcon"/>
+              <Shortcut Id="AppShortcut" Name="${{ env.APP_NAME }}" Description="Launch" Target="[AppSubFolder]${{ env.APP_NAME }}.bat" WorkingDirectory="AppSubFolder"/>
               <RegistryValue Root="HKCU" Key="Software\\${{ env.APP_NAME }}" Name="Installed" Type="integer" Value="1" KeyPath="yes"/>
             </Component>
-
-            <Icon Id="AppIcon" SourceFile="SourceDir/app_icon.ico"/>
-            <Binary Id="VBSMessage" SourceFile="SourceDir/ShowSuccessMessage.vbs"/>
-            <CustomAction Id="ShowSuccess" BinaryKey="VBSMessage" VBScriptCall="" Execute="immediate" Return="check"/>
 
             <InstallExecuteSequence>
               <Custom Action="ShowSuccess" After="InstallFinalize">NOT Installed</Custom>
@@ -150,13 +146,10 @@ jobs:
         ./wix/candle.exe streamlit_exe.wxs -out streamlit_exe.wixobj
         ./wix/candle.exe streamlit_exe_files.wxs -out streamlit_exe_files.wixobj
 
-        
-
     - name: Light WiX Installer
       run: |
         ./wix/light.exe streamlit_exe.wixobj streamlit_exe_files.wixobj -ext WixUIExtension -o "${{ env.APP_NAME }}.msi" -cultures:en-us
-        
-        
+            
     - name: Upload Installer
       uses: actions/upload-artifact@v4
       with:
