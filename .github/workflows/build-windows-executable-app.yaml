@@ -24,14 +24,14 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: Download & unpack embeddable Python
+    - name: Setup Python Embeddable Version
       run: |
         mkdir python-${{ env.PYTHON_VERSION }}
         curl -O https://www.python.org/ftp/python/${{ env.PYTHON_VERSION }}/python-${{ env.PYTHON_VERSION }}-embed-amd64.zip
         unzip python-${{ env.PYTHON_VERSION }}-embed-amd64.zip -d python-${{ env.PYTHON_VERSION }}
         rm python-${{ env.PYTHON_VERSION }}-embed-amd64.zip
 
-    - name: Install pip into embeddable
+    - name: Install pip
       run: |
         curl -O https://bootstrap.pypa.io/get-pip.py
         ./python-${{ env.PYTHON_VERSION }}/python get-pip.py --no-warn-script-location
@@ -43,37 +43,34 @@ jobs:
 
     - name: Install Required Packages
       run: |
-        .\\python-${{ env.PYTHON_VERSION }}\\python -m pip install Cython --no-warn-script-location
-        .\\python-${{ env.PYTHON_VERSION }}\\python -m pip install numpy --no-warn-script-location
-        .\\python-${{ env.PYTHON_VERSION }}\\python -m pip install -r requirements-windows.txt --no-warn-script-location
+        .\python-3.11.0\python -m pip install Cython --no-warn-script-location
+        .\python-${{ env.PYTHON_VERSION }}\python -m pip install numpy --no-warn-script-location
+        .\python-${{ env.PYTHON_VERSION }}\python -m pip install -r requirements-windows.txt --no-warn-script-location
 
-    - name: Create Launcher BAT file
+    - name: Create Launcher BAT File
       run: |
-        echo "start /min .\\python-${{ env.PYTHON_VERSION }}\\python -m streamlit run ms2_main.py local" > ${{ env.APP_NAME }}.bat
+        echo "start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py local" > ${{ env.APP_NAME }}.bat
 
-    - name: Package application folder
+    - name: Create Executable Folder
       run: |
         mkdir dist_folder
         mv python-${{ env.PYTHON_VERSION }} dist_folder/
         cp -r src dist_folder/
-        # No pages or assets directories present
         cp requirements-windows.txt dist_folder/
         cp README.md dist_folder/
-        cp ${{ env.APP_NAME }}.bat dist_folder/
+        cp "${{ env.APP_NAME }}.bat" dist_folder/
 
-    - name: Generate Readme.txt
+    - name: Generate Readme
       shell: bash
       run: |
-        cat <<EOF > dist_folder/Readme.txt
+        cat <<EOF > dist_folder/ReadME.md
         Welcome to the ${{ env.APP_NAME }} application!
 
         To run the app:
         1. Open the installation folder
-        2. Double-click "$ {{ env.APP_NAME }}.bat"
+        2. Double-click ${{ env.APP_NAME }}.bat
 
-        If you need to change the port, edit .streamlit/config.toml:
-        [server]
-        port = 8502
+        Thank you!
         EOF
 
     - name: Install WiX Toolset
@@ -82,13 +79,11 @@ jobs:
         unzip wix311-binaries.zip -d wix
         rm wix311-binaries.zip
 
-    - name: Heat - Generate component wxs
+    - name: Heat - Generate .wxs from folder
       run: |
-        ./wix/heat.exe dir dist_folder -gg -sfrag -sreg -srd \
-          -template component -cg StreamlitExeFiles -dr AppSubFolder \
-          -out streamlit_exe_files.wxs
+        ./wix/heat.exe dir dist_folder -gg -sfrag -sreg -srd -template component -cg StreamlitExeFiles -dr AppSubFolder -out streamlit_exe_files.wxs
 
-    - name: Create VBScript success message
+    - name: Create VBScript Success Message
       shell: bash
       run: |
         cat <<EOF > ShowSuccessMessage.vbs
@@ -98,8 +93,8 @@ jobs:
     - name: Prepare SourceDir
       run: |
         mkdir SourceDir
-        mv dist_folder/* SourceDir/
-        cp ShowSuccessMessage.vbs SourceDir/
+        mv dist_folder/* SourceDir
+        cp ShowSuccessMessage.vbs SourceDir
         echo "Sample License Text" > SourceDir/app_license.rtf
 
     - name: Generate streamlit_exe.wxs
