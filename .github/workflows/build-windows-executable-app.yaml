@@ -81,7 +81,7 @@ jobs:
 
     - name: Heat - Generate .wxs from folder
       run: |
-        ./wix/heat.exe dir streamlit_exe -gg -sfrag -sreg -srd -template component -cg StreamlitExeFiles -dr AppSubFolder -out streamlit_exe_files.wxs
+        ./wix/heat.exe dir dist_folder -gg -sfrag -sreg -srd -template component -cg StreamlitExeFiles -dr AppSubFolder -out streamlit_exe_files.wxs
 
     - name: Create VBScript Success Message
       shell: bash
@@ -93,9 +93,8 @@ jobs:
     - name: Prepare SourceDir
       run: |
         mkdir SourceDir
-        mv streamlit_exe/* SourceDir
+        mv dist_folder/* SourceDir
         cp ShowSuccessMessage.vbs SourceDir
-        cp assets/app_icon.ico SourceDir
         echo "Sample License Text" > SourceDir/app_license.rtf
 
     - name: Generate streamlit_exe.wxs
