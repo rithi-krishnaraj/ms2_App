@@ -97,11 +97,11 @@ jobs:
         cp ShowSuccessMessage.vbs SourceDir
         echo "Sample License Text" > SourceDir/app_license.rtf
 
-        
+
     - name: Generate streamlit_exe.wxs
       shell: bash
       run: |
-        cat <<EOF > streamlit_exe.wxsMore actions
+        cat <<EOF > streamlit_exe.wxs
         <?xml version="1.0"?>
         <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
           <Product Id="*" Name="${{ env.APP_NAME }}" Language="1033" Version="1.0.0" Manufacturer="Your Org" UpgradeCode="b3e2c7a1-5e2a-4f6c-9e2d-1a2b3c4d5e6f">
