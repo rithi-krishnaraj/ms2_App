@@ -49,13 +49,13 @@ jobs:
 
     - name: Create Launcher BAT File
       run: |
-        echo "start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run src/ms2_main.py local" > ${{ env.APP_NAME }}.bat
+        echo " start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py local" > ${{ env.APP_NAME }}.bat
 
     - name: Create Executable Folder
       run: |
         mkdir dist_folder
         mv python-${{ env.PYTHON_VERSION }} dist_folder/
-        cp -r src dist_folder/
+        cp ms2_main.py dist_folder/
         cp requirements-windows.txt dist_folder/
         cp README.md dist_folder/
         cp "${{ env.APP_NAME }}.bat" dist_folder/
