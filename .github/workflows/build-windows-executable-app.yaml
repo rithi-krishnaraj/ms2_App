@@ -148,12 +148,11 @@ jobs:
     - name: Compile .wxs to .wixobj
       run: 
         ./wix/candle.exe -ext WixUIExtension -sice:ICE60 streamlit_exe_files.wixobj streamlit_exe_files.wxs
-        ./wix/candle.exe -ext WixUIExtension -sice:ICE60 streamlit_exe.wixobj streamlit_exe.wxs
+        ./wix/candle.exe -ext WixUIExtension -sice:ICE60 streamlit_exe.wxs
 
     - name: Link .msi
       run: 
-        ./wix/light.exe -ext WixUIExtension -sice:ICE60 -o ${{ env.APP_NAME }}.msi streamlit_exe_files.wixobj 
-        ./wix/light.exe -ext WixUIExtension -sice:ICE60 -o ${{ env.APP_NAME }}.msi streamlit_exe.wixobj -b SourceDir
+        ./wix/light.exe -ext WixUIExtension -sice:ICE60 -o ${{ env.APP_NAME }}.msi streamlit_exe_files.wixobj streamlit_exe.wixobj -b SourceDir
 
 
     - name: Upload Installer
