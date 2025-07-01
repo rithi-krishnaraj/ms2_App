@@ -1,0 +1,10 @@
+streamlit
+pandas
+numpy
+matplotlib
+spectrum_utils
+plotly
+requests
+pyteomics
+xlsxwriter
+```
