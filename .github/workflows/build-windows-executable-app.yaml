@@ -97,6 +97,7 @@ jobs:
         cp ShowSuccessMessage.vbs SourceDir
         echo "Sample License Text" > SourceDir/app_license.rtf
 
+        
     - name: Generate streamlit_exe.wxs
       shell: bash
       run: |
