@@ -68,8 +68,6 @@ jobs:
         1. Open the installation folder
         2. Double-click ${{ env.APP_NAME }}.bat
 
-        You can modify the port in .streamlit/config.toml if needed.
-
         Thank you!
         EOF
 
