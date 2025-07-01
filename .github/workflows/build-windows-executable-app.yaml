@@ -148,7 +148,7 @@ jobs:
     - name: Compile WiX Installer
       run: |
         ./wix/candle.exe streamlit_exe.wxs -out streamlit_exe.wixobj
-        ./wix/light.exe streamlit_exe.wixobj -ext WixUIExtension -out "${{ env.APP_NAME }}.msi" -cultures:en-us
+        ./wix/light.exe streamlit_exe.wixobj -ext WixUIExtension -o "${{ env.APP_NAME }}.msi" -cultures:en-us -b SourceDir
         rm streamlit_exe.wixobj
 
     - name: Upload Installer
