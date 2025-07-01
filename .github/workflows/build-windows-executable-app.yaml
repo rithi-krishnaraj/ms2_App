@@ -95,6 +95,7 @@ jobs:
         mkdir SourceDir
         mv dist_folder/* SourceDir
         cp ShowSuccessMessage.vbs SourceDir
+        cp app_icon.ico SourceDir
         echo "Sample License Text" > SourceDir/app_license.rtf
 
     - name: Generate streamlit_exe.wxs
