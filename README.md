@@ -1,79 +1,48 @@
-# MS2 Scan Analyzer
+# Streamlit App Builder
 
-A Streamlit-based web application for interactive exploration and analysis of mass spectrometry data from MGF or mzML file formats. Use both visualization tools and the GNPS FASTSearch database to compare your spectra against public libraries and download comprehensive results.
----
+This project is a Streamlit application designed for analyzing MS2 scans. It provides a user-friendly interface for uploading mass spectrometry data files, processing the data, and visualizing the results.
 
-## Files
-- Use ms2_main.py with no multiprocessing for downloadable csv file
-- Use ms2_multiprocessing.py for quicker creation of downloadable csv file
+## Project Structure
 
-## Features
+```
+streamlit-app-builder
+├── src
+│   ├── ms2_main.py          # Main logic for the Streamlit application
+│   └── assets
+│       └── app_icon.ico     # Application icon for Windows
+├── requirements.txt          # List of dependencies
+├── setup.py                  # Packaging configuration
+├── .github
+│   └── workflows
+│       └── build_windows.yml # GitHub Actions workflow for building the app
+└── README.md                 # Project documentation
+```
 
-- **File Upload & Parsing**  
-  - Upload **MGF** or **mzML** files.  
-  - Automatic parsing of scan metadata (scan number, spectrum ID, precursor m/z, charge state, SMILES if available).  
+## Installation
 
-- **Scan Metadata Viewer**  
-  - Browse all parsed scans in an expandable data table.  
-  - View key metadata: Scan Number, Spectrum ID, Precursor m/z, Charge State, SMILES.
+To install the required dependencies, run the following command:
 
-- **Interactive Spectrum Visualization**  
-  - **Unfiltered Spectrum**: raw m/z vs intensity plot via Plotly.  
-  - **Filtered Spectrum**: remove noise peaks, with two normalization options:  
-    - _Normalized_ (vector‐norm scaling)  
-    - _Square‐root normalized_ (enhanced low‐intensity peak visibility).
-
-- **GNPS FASTSearch Integration**  
-  - Select any scan for direct FASTSearch queries against GNPS libraries.  
-  - Adjustable parameters:  
-    - Library selection from common indices ( GNPS, ORNL Bioscales, Massive, MetaRepo, etc.)  
-    - Analog search toggle (Yes/No)  
-    - Cache usage toggle  
-    - Delta mass window (below/above in Da)  
-    - Precursor & fragment mass tolerances (Da)  
-    - Cosine similarity threshold (0.0–1.0)  
-
-- **GNPS Link Generator**  
-  - One‐click generation of a pre‐filled GNPS FASTSearch URL containing your scan’s peak list and parameters.  
-  - Facilitates offline or manual FASTSearch exploration.
-
-- **Result Display & Export**  
-  - View matched results in an interactive data table: delta mass, USI, charge, cosine score, matching peaks count, dataset, status.  
-  - Download complete FASTSearch results across **all** scans in a single CSV via parallel processing (CAUTION: Streamlit does not allow other functionalities to be used while the csv file is being created, and it can take minutes up to hours/days for full creation of the file, depending on if multiprocessing is used or not)  
-
-- **Mirror Plot Comparison**  
-  - Side‐by‐side “mirror” plots of the uploaded scan vs. any matching USI spectrum.  
-  - Compare **Unfiltered** and **Filtered** views to visually assess peak alignment.
-
----
-## Getting Started
-
-### Requirements
-
-- Python 3.8+  
-- [Streamlit](https://streamlit.io/)  
-- Key Python packages:
-  pip install streamlit pandas numpy matplotlib plotly requests xlsxwriter spectrum-utils pyteomics time json
-
-### Running the App Locally
-
-Follow these steps to download, set up, and launch the MS2 Scan Analyzer on your local computer.
-
-1. Open a terminal and navigate to the folder where you’d like to keep the project, and run the following commands:  
-```bash
-git clone https://github.com/rithi-krishnaraj/ms2_App.git
-cd ms2-scan-analyzer
-- For macOS/Linux:
-    python3 -m venv .venv
-    source .venv/bin/activate
-- For Windows:
-    python -m venv .venv
-    .\.venv\Scripts\Activate.ps1
+```
 pip install -r requirements.txt
-pip install python-dotenv
-streamlit run ms2_main.py (replace ms2_main.py with ms2_multiprocessing for faster csv file creation)
+```
 
-2. Upload an mgf or mzmL file to use the Streamlit App
+## Running the Application
 
+To run the Streamlit application, execute the following command:
+
+```
+streamlit run src/ms2_main.py
+```
+
+## Building the Application
+
+To create a Windows installable application, the project includes a GitHub Actions workflow. This workflow is defined in `.github/workflows/build_windows.yml`. It automates the process of setting up the environment, installing dependencies, and building the executable.
+
+## Usage
+
+1. Upload your mass spectrometry data files in either MGF or mzML format.
+2. Select the scan number to view the MS2 spectrum.
+3. Adjust the parameters for GNPS FASTSearch as needed.
+4. Generate results and download them in CSV format.
 
 
