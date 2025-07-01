@@ -43,6 +43,7 @@ jobs:
 
     - name: Install Required Packages
       run: |
+        .\python-3.11.0\python -m pip install Cython --no-warn-script-location
         .\python-${{ env.PYTHON_VERSION }}\python -m pip install numpy --no-warn-script-location
         .\python-${{ env.PYTHON_VERSION }}\python -m pip install -r requirements-windows.txt --no-warn-script-location
 
