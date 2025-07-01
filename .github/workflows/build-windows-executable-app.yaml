@@ -42,7 +42,9 @@ jobs:
         sed -i 's/#import site/import site/' python-${{ env.PYTHON_VERSION }}/python311._pth
 
     - name: Install Required Packages
-      run: .\python-${{ env.PYTHON_VERSION }}\python -m pip install -r requirements-windows.txt --no-warn-script-location
+      run: |
+        .\python-${{ env.PYTHON_VERSION }}\python -m pip install numpy --no-warn-script-location
+        .\python-${{ env.PYTHON_VERSION }}\python -m pip install -r requirements-windows.txt --no-warn-script-location
 
     - name: Create Launcher BAT File
       run: |
