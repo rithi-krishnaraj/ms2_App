@@ -145,31 +145,14 @@ jobs:
         </Wix>
         EOF
 
-    - name: Compile Product .wxs to .wixobj
+    - name: Build .wixobj file with candle.exe
       run: |
-        ./wix/candle.exe \
-          -ext WixUIExtension \
-          -sice:ICE60 \
-          -out streamlit_exe.wixobj \
-          streamlit_exe.wxs
+        ./wix/candle.exe streamlit_exe.wxs streamlit_exe_files.wxs
 
-    - name: Compile Fragment .wxs to .wixobj
+    - name: Link .wixobj file into .msi with light.exe
       run: |
-        ./wix/candle.exe \
-          -ext WixUIExtension \
-          -sice:ICE60 \
-          -out streamlit_exe_files.wixobj \
-          streamlit_exe_files.wxs
+        ./wix/light.exe -ext WixUIExtension -sice:ICE60 -o ${{ env.APP_NAME }}.msi streamlit_exe_files.wixobj streamlit_exe.wixobj
 
-    - name: Link .msi
-      run: |
-        ./wix/light.exe \
-          -ext WixUIExtension \
-          -sice:ICE60 \
-          -o ${{ env.APP_NAME }}.msi \
-          streamlit_exe.wixobj \
-          streamlit_exe_files.wixobj
-          
     - name: Upload Installer
       uses: actions/upload-artifact@v4
       with:
