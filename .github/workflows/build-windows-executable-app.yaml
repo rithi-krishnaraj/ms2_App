@@ -145,9 +145,12 @@ jobs:
         </Wix>
         EOF
 
-    - name: Compile WiX Installer
+    - name: Candle WiX Installer
       run: |
         ./wix/candle.exe streamlit_exe.wxs -out streamlit_exe.wixobj
+
+    - name: Light WiX Installer
+      run: |
         ./wix/light.exe streamlit_exe.wixobj -ext WixUIExtension -o "${{ env.APP_NAME }}.msi" -cultures:en-us -b SourceDir
         
         
