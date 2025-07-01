@@ -100,59 +100,45 @@ jobs:
     - name: Generate streamlit_exe.wxs
       shell: bash
       run: |
-        cat <<EOF > streamlit_exe.wxs
+        cat <<EOF > streamlit_exe.wxsMore actions
         <?xml version="1.0"?>
         <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-          <Product Id="*" Name="${{ env.APP_NAME }}" Language="1033" Version="1.0.0.0" Manufacturer="Your Org" UpgradeCode="PUT-GUID-HERE">
-            <Package Id="*" InstallerVersion="300" Compressed="yes" InstallPrivileges="elevated" Platform="x64" />
-            <Media Id="1" Cabinet="streamlit.cab" EmbedCab="yes" />
+          <Product Id="*" Name="${{ env.APP_NAME }}" Language="1033" Version="1.0.0" Manufacturer="Your Org" UpgradeCode="b3e2c7a1-5e2a-4f6c-9e2d-1a2b3c4d5e6f">
+            <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"/>
+            <Media Id="1" Cabinet="media.cab" EmbedCab="yes"/>
 
-            <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+            <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER"/>
             <Directory Id="TARGETDIR" Name="SourceDir">
               <Directory Id="ProgramFilesFolder">
                 <Directory Id="INSTALLFOLDER" Name="${{ env.APP_NAME }}">
-                  <Directory Id="AppSubFolder" Name="${{ env.APP_NAME }}" />
-                  <Component Id="CreateAppFolder" Guid="PUT-GUID-HERE">
-                    <CreateFolder>
-                      <Permission User="Everyone" GenericAll="yes" />
-                    </CreateFolder>
-                  </Component>
+                  <Directory Id="AppSubFolder" Name="${{ env.APP_NAME }}"/>
                 </Directory>
               </Directory>
-              <Directory Id="DesktopFolder" />
+              <Directory Id="DesktopFolder"/>
             </Directory>
 
-            <Feature Id="MainFeature" Title="Main Application" Level="1">
-              <ComponentGroupRef Id="StreamlitExeFiles" />
-              <ComponentRef Id="CreateAppFolder" />
-              <ComponentRef Id="DesktopShortcutComponent" />
-              <ComponentRef Id="InstallDirShortcutComponent" />
+            <Feature Id="MainFeature" Title="Main App" Level="1">
+              <ComponentGroupRef Id="StreamlitExeFiles"/>
+              <ComponentRef Id="DesktopShortcutComponent"/>
             </Feature>
 
-            <Component Id="DesktopShortcutComponent" Guid="PUT-GUID-HERE" Directory="DesktopFolder">
-              <Shortcut Id="DesktopShortcut" Name="${{ env.APP_NAME }}" Description="Launch" Target="[AppSubFolder]${{ env.APP_NAME }}.bat" WorkingDirectory="AppSubFolder" />
-              <RegistryValue Root="HKCU" Key="Software\\YourOrg\\${{ env.APP_NAME }}" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+            <Component Id="DesktopShortcutComponent" Guid="B1110000-0000-0000-0000-000000000001" Directory="DesktopFolder">
+              <Shortcut Id="AppShortcut" Name="${{ env.APP_NAME }}" Description="Launch" Target="[AppSubFolder]${{ env.APP_NAME }}.bat" WorkingDirectory="AppSubFolder"/>
+              <RegistryValue Root="HKCU" Key="Software\\${{ env.APP_NAME }}" Name="Installed" Type="integer" Value="1" KeyPath="yes"/>
             </Component>
 
-            <Component Id="InstallDirShortcutComponent" Guid="PUT-GUID-HERE" Directory="AppSubFolder">
-              <Shortcut Id="InstallDirShortcut" Name="${{ env.APP_NAME }}" Description="Launch" Target="[AppSubFolder]${{ env.APP_NAME }}.bat" WorkingDirectory="AppSubFolder" />
-              <RegistryValue Root="HKCU" Key="Software\\YourOrg\\${{ env.APP_NAME }}" Name="InstallFolderShortcut" Type="integer" Value="1" KeyPath="yes" />
-            </Component>
-
-            <Binary Id="ShowMessageScript" SourceFile="SourceDir/ShowSuccessMessage.vbs" />
-            <CustomAction Id="ShowSuccessMessage" BinaryKey="ShowMessageScript" Execute="immediate" Return="check" />
-
+            <Binary Id="VBSMessage" SourceFile="SourceDir/ShowSuccessMessage.vbs"/>
+            <CustomAction Id="ShowSuccess" BinaryKey="VBSMessage" VBScriptCall="" Execute="immediate" Return="check"/>
             <InstallExecuteSequence>
-              <Custom Action="ShowSuccessMessage" After="InstallFinalize">NOT Installed</Custom>
+              <Custom Action="ShowSuccess" After="InstallFinalize">NOT Installed</Custom>
             </InstallExecuteSequence>
 
             <UI>
-              <UIRef Id="WixUI_InstallDir" />
-              <UIRef Id="WixUI_ErrorProgressText" />
+              <UIRef Id="WixUI_InstallDir"/>
+              <UIRef Id="WixUI_ErrorProgressText"/>
             </UI>
 
-            <WixVariable Id="WixUILicenseRtf" Value="SourceDir/app_license.rtf" />
-
+            <WixVariable Id="WixUILicenseRtf" Value="SourceDir/app_license.rtf"/>
           </Product>
         </Wix>
         EOF
@@ -164,7 +150,7 @@ jobs:
 
     - name: Light WiX Installer
       run: |
-        ./wix/light.exe streamlit_exe.wixobj streamlit_exe_files.wixobj -ext WixUIExtension -sice:ICE60 -o "${{ env.APP_NAME }}.msi" -cultures:en-us
+        ./wix/light.exe streamlit_exe.wixobj streamlit_exe_files.wixobj -ext WixUIExtension -o "${{ env.APP_NAME }}.msi" -cultures:en-us
             
     - name: Upload Installer
       uses: actions/upload-artifact@v4
