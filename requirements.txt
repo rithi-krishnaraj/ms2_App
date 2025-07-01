@@ -1,0 +1,14 @@
+streamlit
+pandas
+numpy
+matplotlib
+spectrum_utils
+plotly
+requests
+json
+urlparse
+parse_qs
+pyteomics
+time
+multiprocessing
+xlsxwriter
