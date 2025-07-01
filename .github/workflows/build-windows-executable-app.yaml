@@ -49,7 +49,7 @@ jobs:
 
     - name: Create Launcher BAT File
       run: |
-        echo " start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py local" > ${{ env.APP_NAME }}.bat
+        echo " start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py" > ${{ env.APP_NAME }}.bat
 
     - name: Create Executable Folder
       run: |

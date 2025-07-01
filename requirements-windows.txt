@@ -7,5 +7,4 @@ plotly
 requests
 pyteomics
 xlsxwriter
-lxml
 pyinstaller==6.6.0
