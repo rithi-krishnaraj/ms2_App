@@ -127,6 +127,8 @@ jobs:
               <RegistryValue Root="HKCU" Key="Software\\${{ env.APP_NAME }}" Name="Installed" Type="integer" Value="1" KeyPath="yes"/>
             </Component>
 
+            <Binary Id="VBSMessage" SourceFile="SourceDir/ShowSuccessMessage.vbs"/>
+            <CustomAction Id="ShowSuccess" BinaryKey="VBSMessage" VBScriptCall="" Execute="immediate" Return="check"/>
             <InstallExecuteSequence>
               <Custom Action="ShowSuccess" After="InstallFinalize">NOT Installed</Custom>
             </InstallExecuteSequence>
