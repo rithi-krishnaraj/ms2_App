@@ -25,12 +25,12 @@ jobs:
       - name: Build the application
         run: |
           pip install pyinstaller
-          pyinstaller --onefile --windowed src/ms2_main.py --icon src/assets/app_icon.ico
+          pyinstaller --onefile src/ms2_main.py --icon src/assets/app_icon.ico
 
-      - name: Create installer
+      - name: Create zip archive
         run: |
           cd dist
-          zip -r streamlit_app.zip * 
+          tar -a -c -f streamlit_app.zip *
 
       - name: Upload installer
         uses: actions/upload-artifact@v2
