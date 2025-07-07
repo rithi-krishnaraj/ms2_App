@@ -216,8 +216,6 @@ def read_mzml_file(mzml_file):
         st.error(f"Failed to read mzML file: {str(e)}")
         return [], []
     
-
-
 def process_scan_library(values):
     scan, library = values
     try:
@@ -248,16 +246,16 @@ def process_scan_library(values):
         print(f"Error processing scan {scan['Scan Number']} with library {library}: {e}")
     return []
 
-def process_scans_in_parallel(scans):
+def process_scans_in_parallel(scans, progress_callback=None):
     all_results = []
     tasks = [(scan, library) for scan in scans for library in LIBRARIES]
-
+    total = len(tasks)
     with Pool(processes=1) as pool:
-        results = pool.map(process_scan_library, tasks)
-
-    for result in results:
-        all_results.extend(result)
-
+        results_iter = pool.imap(process_scan_library, tasks)
+        for i, result in enumerate(results_iter, 1):
+            all_results.extend(result)
+            if progress_callback:
+                progress_callback(i, total)
     return all_results
 
 if __name__ == "__main__":
@@ -283,39 +281,99 @@ if __name__ == "__main__":
         if not scan_metadata:
             st.error("No scans found in the uploaded file.")
         else:
-            st.subheader(f"Analyzing {file_type.upper()} File")
+            #Scan Number Selection
+            scan_input = st.selectbox("Select Scan Number to Run Analysis", options=scan_numbers)
+            st.subheader("Downloadable CSV Files")
+            col1, col2 = st.columns(2)
+            with col1:
+                #csv file for selected scan
+                if st.button("Generate GNPS Results for Selected Scan"):
+                    if scan_input:
+                        start_time = time.time()
+                        progress_text = "Processing selected scan. Please wait..."
+                        my_bar = st.progress(0, text=progress_text)
+                        time_left_placeholder = st.empty()
 
-            if st.button("Generate GNPS Results for all scans in CSV File"):
-                start_time = time.time()
-                with st.spinner("Processing scans..."):
-                    matching_results = process_scans_in_parallel(scan_metadata)
-                end_time = time.time()
+                        def update_progress(completed, total):
+                            percent = int(completed / total * 100)
+                            elapsed = time.time() - start_time
+                            if completed > 0:
+                                est_total = elapsed / completed * total
+                                est_left = est_total - elapsed
+                                time_left_placeholder.info(f"Estimated time left: {est_left:.1f} seconds")
+                            my_bar.progress(percent, text=progress_text)
 
-                if matching_results:
-                    results_df = pd.DataFrame(matching_results)
-                    desired_columns = ["Scan Number", "Library", "Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
-                    
-                    missing_cols = set(desired_columns) - set(results_df.columns)
-                    for col in missing_cols:
-                        results_df[col] = np.nan
-                    
-                    results_df = results_df[desired_columns]
-                    csv_data = results_df.to_csv(index=False).encode('utf-8')
-                    
-                    st.download_button(
-                        label="Download GNPS Results in CSV File",
-                        data=csv_data,
-                        file_name="gnps_results.csv",
-                        mime="text/csv"
-                    )
-                    st.success(f"File created successfully in {end_time-start_time:.2f} seconds!")
+                        # Find the scan dict matching the selected scan number
+                        selected_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
+                        if selected_scan is not None:
+                            matching_results = process_scans_in_parallel([selected_scan], progress_callback=update_progress)
+                            end_time = time.time()
+                            my_bar.empty()
+                            time_left_placeholder.empty()
 
+                            if matching_results:
+                                results_df = pd.DataFrame(matching_results)
+                                desired_columns = ["Scan Number", "Library", "Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
+                                missing_cols = set(desired_columns) - set(results_df.columns)
+                                for col in missing_cols:
+                                    results_df[col] = np.nan
+                                results_df = results_df[desired_columns]
+                                csv_data = results_df.to_csv(index=False).encode('utf-8')
+                                st.download_button(
+                                    label="Download GNPS Results in CSV File",
+                                    data=csv_data,
+                                    file_name=f"gnps_results_scan_{scan_input}.csv",
+                                    mime="text/csv"
+                                )
+                                st.success(f"File created successfully in {end_time-start_time:.2f} seconds!")
+                        else:
+                            st.error("Selected scan not found.")
+            with col2:
+                #csv file for all scans
+                if st.button("Generate GNPS Results for all scans"):
+                    start_time = time.time()
+                    progress_text = "Processing scans. Please wait..."
+                    my_bar = st.progress(0, text=progress_text)
+                    time_left_placeholder = st.empty()
+
+                    def update_progress(completed, total):
+                        percent = int(completed / total * 100)
+                        elapsed = time.time() - start_time
+                        if completed > 0:
+                            est_total = elapsed / completed * total
+                            est_left = est_total - elapsed
+                            time_left_placeholder.info(f"Estimated time left: {est_left:.1f} seconds")
+                        my_bar.progress(percent, text=progress_text)
+
+                    matching_results = process_scans_in_parallel(scan_metadata, progress_callback=update_progress)
+                    end_time = time.time()
+                    my_bar.empty()
+                    time_left_placeholder.empty()
+
+                    if matching_results:
+                        results_df = pd.DataFrame(matching_results)
+                        desired_columns = ["Scan Number", "Library", "Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
+                        
+                        missing_cols = set(desired_columns) - set(results_df.columns)
+                        for col in missing_cols:
+                            results_df[col] = np.nan
+                        
+                        results_df = results_df[desired_columns]
+                        csv_data = results_df.to_csv(index=False).encode('utf-8')
+                        
+                        st.download_button(
+                            label="Download GNPS Results in CSV File",
+                            data=csv_data,
+                            file_name="gnps_results.csv",
+                            mime="text/csv"
+                        )
+                        st.success(f"File created successfully in {end_time-start_time:.2f} seconds!")
+            
+            #File Information
+            st.subheader(f"{file_type.upper()} File Information ")
             df = pd.DataFrame(scan_metadata, columns=["Scan Number", "Spectrum ID", "PEPMASS Number", "Charge State", "SMILES ID"])
-            with st.expander("Show Scan Numbers and Metadata"):
+            with st.expander("All Scan Numbers and Metadata"):
                 st.dataframe(df)
-
-            scan_input = st.selectbox("Select Scan Number to view MS2 Spectrum", options=scan_numbers)
-
             if scan_input:
                 user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
                 mz_filtered, sqrt_filtered, normal_filtered = peak_filtering(user_scan)
@@ -331,7 +389,10 @@ if __name__ == "__main__":
                     with spectrum_option[2]:
                         peak_visual(mz_filtered, sqrt_filtered,
                                     str(user_scan["Scan Number"]), user_scan["PEPMASS Number"], user_scan["Charge State"])
-                
+
+            #GNPS FASTSearch
+            if scan_input:
+                user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
                 st.subheader(f"GNPS FASTSearch for Scan {user_scan['Scan Number']}")
                 precursor_mz = user_scan["PEPMASS Number"]
                 charge = user_scan["Charge State"]
@@ -430,7 +491,4 @@ if __name__ == "__main__":
                                     st.error(f"Failed to create filtered mirror plot: {e}")
                     except KeyError as e:
                         st.error(f"Could not retrieve spectrum data: {e}")
-
-
-
 
