@@ -266,8 +266,10 @@ if __name__ == "__main__":
     if uploaded_file is not None:
         file_type = uploaded_file.name.split(".")[-1].lower()
         if file_type == "mgf":
+            st.spinner("Reading MGF file...")
             scan_numbers, scan_metadata = read_file(uploaded_file)
         elif file_type == "mzml":
+            st.spinner("Reading mzML file...")
             scan_numbers, scan_metadata = read_mzml_file(uploaded_file)
         else:
             st.error("Unsupported file type. Please upload an MGF or mzML file.")
@@ -281,8 +283,56 @@ if __name__ == "__main__":
         if not scan_metadata:
             st.error("No scans found in the uploaded file.")
         else:
+            #File Information
+            st.subheader(f"{file_type.upper()} File Information ")
+            st.spinner("Loading Scan Metadata...")
+            df = pd.DataFrame(scan_metadata, columns=["Scan Number", "Spectrum ID", "PEPMASS Number", "Charge State", "SMILES ID"])
+            with st.expander("All Scan Numbers and Metadata - Select A Scan Number to Run Analysis", expanded=True):
+                st.write("Total Scans Found: ", len(scan_metadata))
+                df["Select"] = False 
+                cols = ["Select"] + [col for col in df.columns if col != "Select"]
+                df = df[cols]
+
+                selected_df = st.data_editor(
+                    df,
+                    column_config={"Select": st.column_config.CheckboxColumn(required=True)},
+                    disabled=["Scan Number", "Spectrum ID", "PEPMASS Number", "Charge State", "SMILES ID"],
+                    hide_index=True,
+                    key="scan_metadata_editor"
+                )
+
+                if selected_df["Select"].sum() > 1:
+                    st.warning("Please select only one scan.")
+                    scan_input = None
+                else:
+                    selected_rows = selected_df[selected_df["Select"]]
+                    if not selected_rows.empty:
+                        scan_input = selected_rows.iloc[0]["Scan Number"]
+                    else:
+                        scan_input = None
+            
+            
+            #Spectrum Visualization
+            if scan_input:
+                st.spinner("Loading Spectrum Visualization...")
+                user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
+                mz_filtered, sqrt_filtered, normal_filtered = peak_filtering(user_scan)
+                
+                with st.expander(f"View Spectrum for Scan {user_scan['Scan Number']}", expanded=False):
+                    spectrum_option = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum - Normalized", "Filtered Spectrum - Square Root Normalized"])
+                    with spectrum_option[0]:
+                        peak_visual(user_scan["m/z data"], user_scan["intensity data"],
+                                    str(user_scan["Scan Number"]), user_scan["PEPMASS Number"], user_scan["Charge State"])
+                    with spectrum_option[1]:
+                        peak_visual(mz_filtered, normal_filtered,
+                                    str(user_scan["Scan Number"]), user_scan["PEPMASS Number"], user_scan["Charge State"])
+                    with spectrum_option[2]:
+                        peak_visual(mz_filtered, sqrt_filtered,
+                                    str(user_scan["Scan Number"]), user_scan["PEPMASS Number"], user_scan["Charge State"])
+        
             #Scan Number Selection
-            scan_input = st.selectbox("Select Scan Number to Run Analysis", options=scan_numbers)
+            #scan_input = st.selectbox("Select Scan Number to Run Analysis", options=scan_numbers)
+            
             st.subheader("Downloadable CSV Files")
             col1, col2 = st.columns(2)
             with col1:
@@ -326,11 +376,14 @@ if __name__ == "__main__":
                                     mime="text/csv"
                                 )
                                 st.success(f"File created successfully in {end_time-start_time:.2f} seconds!")
+                            else: 
+                                st.error("No matching results found for the selected scan.")
+
                         else:
                             st.error("Selected scan not found.")
             with col2:
                 #csv file for all scans
-                if st.button("Generate GNPS Results for all scans"):
+                if st.button("Generate GNPS Results for All Scans"):
                     start_time = time.time()
                     progress_text = "Processing scans. Please wait..."
                     my_bar = st.progress(0, text=progress_text)
@@ -368,30 +421,12 @@ if __name__ == "__main__":
                             mime="text/csv"
                         )
                         st.success(f"File created successfully in {end_time-start_time:.2f} seconds!")
-            
-            #File Information
-            st.subheader(f"{file_type.upper()} File Information ")
-            df = pd.DataFrame(scan_metadata, columns=["Scan Number", "Spectrum ID", "PEPMASS Number", "Charge State", "SMILES ID"])
-            with st.expander("All Scan Numbers and Metadata"):
-                st.dataframe(df)
-            if scan_input:
-                user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
-                mz_filtered, sqrt_filtered, normal_filtered = peak_filtering(user_scan)
-                
-                with st.expander("View Spectrum", expanded=False):
-                    spectrum_option = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum - Normalized", "Filtered Spectrum - Square Root Normalized"])
-                    with spectrum_option[0]:
-                        peak_visual(user_scan["m/z data"], user_scan["intensity data"],
-                                    str(user_scan["Scan Number"]), user_scan["PEPMASS Number"], user_scan["Charge State"])
-                    with spectrum_option[1]:
-                        peak_visual(mz_filtered, normal_filtered,
-                                    str(user_scan["Scan Number"]), user_scan["PEPMASS Number"], user_scan["Charge State"])
-                    with spectrum_option[2]:
-                        peak_visual(mz_filtered, sqrt_filtered,
-                                    str(user_scan["Scan Number"]), user_scan["PEPMASS Number"], user_scan["Charge State"])
+                    else: 
+                        st.error("No matching results found for any scans.") 
 
             #GNPS FASTSearch
             if scan_input:
+                st.spinner("Loading GNPS FASTSearch...")
                 user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
                 st.subheader(f"GNPS FASTSearch for Scan {user_scan['Scan Number']}")
                 precursor_mz = user_scan["PEPMASS Number"]
@@ -417,24 +452,42 @@ if __name__ == "__main__":
                 
 
                 if st.button("Generate GNPS FASTSearch Link"):
+                    st.spinner("Creating GNPS Input Link...")
                     gnpsLink = gnps_input_link(mz, intensity, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold)
                     st.write("GNPS Input Link Created with Scan Data!")
                     st.markdown(f"[Go to GNPS Link]({gnpsLink})", unsafe_allow_html=True)
 
                 if api_response and "results" in api_response:
-                    try: 
+                    try:
                         st.subheader("Matching Results")
+                        st.spinner("Loading Matching USI Results...")
                         results_df = pd.DataFrame(api_response["results"])
                         desired_columns = ["Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
                         results_df = results_df[desired_columns]
-                        st.dataframe(results_df)
-                    except KeyError as e:
-                        st.error(f"No Matching Results Found")
-                    try:
-                        st.subheader("Metabolomics Resolver Spectrum Viewer")
-                        usi_list = results_df["USI"].tolist()
-                        selected_usi = st.selectbox("Select a USI for Spectrum Exploration", usi_list, key="usi_selector")
-                        
+                        with st.expander("View Matching Results - Select Matching USI for Metabolomics Resolver Spectrum Viewer", expanded=True):
+                            st.write("Total Matching USIs Found: ", len(results_df))
+                            results_df["Select"] = False  # Add a checkbox column
+                            cols = ["Select"] + [col for col in results_df.columns if col != "Select"]
+                            results_df = results_df[cols]
+                            
+                            selected_results_df = st.data_editor(
+                                results_df,
+                                column_config={"Select": st.column_config.CheckboxColumn(required=True)},
+                                disabled=["Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"],
+                                hide_index=True,
+                                key="results_metadata_editor"
+                            )
+
+                            if selected_results_df["Select"].sum() > 1:
+                                st.warning("Please select only one USI.")
+                            selected_rows = selected_results_df[selected_results_df["Select"]]
+                            if not selected_rows.empty:
+                                selected_usi = selected_rows.iloc[0]["USI"]
+                            else:
+                                selected_usi = None
+                                
+                        st.spinner("Loading Metabolomics Resolver Spectrums...")
+
                         if selected_usi:
                             spectrum_tabs = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum"])
                             with spectrum_tabs[0]:
@@ -490,5 +543,75 @@ if __name__ == "__main__":
                                 except Exception as e:
                                     st.error(f"Failed to create filtered mirror plot: {e}")
                     except KeyError as e:
-                        st.error(f"Could not retrieve spectrum data: {e}")
+                        st.error(f"No Matching Results Found: {e}")
+                        
 
+                    # try: 
+                    #     st.subheader("Matching Results")
+                    #     results_df = pd.DataFrame(api_response["results"])
+                    #     desired_columns = ["Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
+                    #     results_df = results_df[desired_columns]
+                    #     st.dataframe(results_df)
+                    # except KeyError as e:
+                    #     st.error(f"No Matching Results Found")
+                    # try:
+                    #     st.subheader("Metabolomics Resolver Spectrum Viewer")
+                    #     usi_list = results_df["USI"].tolist()
+                    #     selected_usi = st.selectbox("Select a USI for Spectrum Exploration", usi_list, key="usi_selector")
+                        
+                    #     if selected_usi:
+                    #         spectrum_tabs = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum"])
+                    #         with spectrum_tabs[0]:
+                    #             try:
+                    #                 spectrum_top = sus.MsmsSpectrum(
+                    #                     mz=user_scan["m/z data"],
+                    #                     intensity=user_scan["intensity data"],
+                    #                     identifier=str(user_scan["Scan Number"]),
+                    #                     precursor_mz=user_scan["PEPMASS Number"],
+                    #                     precursor_charge=user_scan["Charge State"]
+                    #                 )
+                    #                 spectrum_bottom = sus.MsmsSpectrum.from_usi(
+                    #                     selected_usi,
+                    #                     precursor_mz=user_scan["PEPMASS Number"],
+                    #                     precursor_charge=user_scan["Charge State"]
+                    #                 )
+                                    
+                    #                 create_mirror_plot(spectrum_top, spectrum_bottom)
+                    #             except Exception as e:
+                    #                 st.error(f"Failed to create unfiltered mirror plot: {e}")
+
+                    #         with spectrum_tabs[1]:
+                    #             try:
+                    #                 spectrum_top = sus.MsmsSpectrum(
+                    #                     mz=mz_filtered,
+                    #                     intensity=normal_filtered,
+                    #                     identifier=str(user_scan["Scan Number"]),
+                    #                     precursor_mz=user_scan["PEPMASS Number"],
+                    #                     precursor_charge=user_scan["Charge State"]
+                    #                 )
+
+                    #                 spectrum_bottom = sus.MsmsSpectrum.from_usi(
+                    #                     selected_usi,
+                    #                     precursor_mz = user_scan["PEPMASS Number"],
+                    #                     precursor_charge = user_scan["Charge State"])
+
+                    #                 usi_scan = {
+                    #                     "m/z data": spectrum_bottom.mz,
+                    #                     "intensity data": spectrum_bottom.intensity,
+                    #                     "Scan Number": spectrum_bottom.identifier,
+                    #                     "PEPMASS Number": spectrum_bottom.precursor_mz,
+                    #                     "Charge State": spectrum_bottom.precursor_charge
+                    #                 }
+                    #                 usi_mz_filtered, _, usi_normal_filtered = peak_filtering(usi_scan)
+                    #                 spectrum_bottom = sus.MsmsSpectrum(
+                    #                     mz=usi_mz_filtered,
+                    #                     intensity=usi_normal_filtered,
+                    #                     identifier=str(usi_scan["Scan Number"]),
+                    #                     precursor_mz=usi_scan["PEPMASS Number"],
+                    #                     precursor_charge=usi_scan["Charge State"]
+                    #                 )
+                    #                 create_mirror_plot(spectrum_top, spectrum_bottom)
+                    #             except Exception as e:
+                    #                 st.error(f"Failed to create filtered mirror plot: {e}")
+                    # except KeyError as e:
+                    #     st.error(f"Could not retrieve spectrum data: {e}")
