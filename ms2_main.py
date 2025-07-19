@@ -457,7 +457,7 @@ if __name__ == "__main__":
                                     st.download_button(
                                         label="Download GNPS Results in CSV File",
                                         data=csv_data,
-                                        file_name=f"{uploaded_file.name.split(".")[0]}_matchingUSIs_scan{scan_input}.csv  ",
+                                        file_name=f"{uploaded_file.name.split('.')[0]}_matchingUSIs_scan{scan_input}.csv",
                                         mime="text/csv"
                                     )
                                     st.success(f"File created successfully in {end_time-start_time:.2f} seconds!")
