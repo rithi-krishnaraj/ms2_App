@@ -337,7 +337,12 @@ if __name__ == "__main__":
                 peaks = user_scan["peaks"]
                 mz = user_scan["m/z data"]
                 intensity = user_scan["intensity data"]
-
+                if st.button("Create GNPS FASTSearch Link", ):
+                    with st.spinner("Creating GNPS Input Link..."):
+                        gnpsLink = gnps_input_link(mz, intensity, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold)
+                    st.write("GNPS Input Link Created with Scan Data!")
+                    st.markdown(f"[Go to GNPS Link]({gnpsLink})", unsafe_allow_html=True)
+            
                 if st.button("View GNPS FAST Search Results: Selected Scan"):
                     api_response = generate_webAPI(peaks, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold)
                         
@@ -346,9 +351,9 @@ if __name__ == "__main__":
                             st.subheader("Matching Results")
                             with st.spinner("Loading Matching USI Results..."):
                                 results_df = pd.DataFrame(api_response["results"], columns = ["Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"])
-                            with st.expander("View Matching Results - Select Matching USI for Metabolomics Resolver Spectrum Viewer", expanded=True):
+                            with st.expander(f"View Matching USI Results for Scan {scan_input}", expanded=True):
                                 st.write("Total Matching USIs Found: ", len(results_df))
-                                selected_usi = st.selectbox("Select USI", options=[""] + list(results_df["USI"].unique()))
+                                selected_usi = st.selectbox("Select Matching USI for Metabolomics Resolver Spectrum Viewer", options=[""] + list(results_df["USI"].unique()))
                                 results = st.dataframe(results_df, hide_index=True)
 
                             with st.spinner("Loading Metabolomics Resolver Spectrums..."): 
@@ -411,12 +416,6 @@ if __name__ == "__main__":
                     else: 
                         st.error("No Matching Results Found")    
                 
-                if st.button("Create GNPS FASTSearch Link", ):
-                    with st.spinner("Creating GNPS Input Link..."):
-                        gnpsLink = gnps_input_link(mz, intensity, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold)
-                    st.write("GNPS Input Link Created with Scan Data!")
-                    st.markdown(f"[Go to GNPS Link]({gnpsLink})", unsafe_allow_html=True)
-            
                 #Downloadable CSV Files
                 st.subheader("Download CSV Files")
                 st.write("Click the buttons below to run complete GNPS FASTSearch against all libraries with the above parameters for the selected scan or all scans. Download results in a CSV file.")

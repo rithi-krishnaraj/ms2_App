@@ -8,6 +8,3 @@ requests==2.32.3
 pyteomics==4.5.0
 xlsxwriter==3.1.2
 lxml==6.0.0
-
-
-```
