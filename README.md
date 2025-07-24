@@ -31,12 +31,11 @@ To run the Streamlit application, execute the following command:
 streamlit run ms2_main.py
 ```
 
-## Building the Application
+## Building the Windows Installable Application
 
-To create a Windows installable application, the project includes a GitHub Actions workflow. This workflow is defined in `.github/workflows/build_windows.yml`. It automates the process of setting up the environment, installing dependencies, and building the executable.
+To create a Windows installable application, the project includes a GitHub Actions workflow. This workflow is defined in `.github/workflows/build_windows.yml`. It automates the process of setting up the environment, installing dependencies, and building the executable. Download the MS2-Scan-Analyzer.msi file from the latest release, and click MS2-Scan-Analyzer in your downloads to run the app. Bypass warnings and start download by working through steps and choosing a location for the download. Once the installable application is downloaded, click the folder in your selected computer path named MS2-Scan-Analyzer and run the MS2-Scan-Analyzer file to run the Streamlit App. 
 
 ## Usage
-
 1. Upload your mass spectrometry data files in either MGF or mzML format.
 2. View All Scan Numbers and their MetaData
 3. Select a scan number to view the MS2 Spectrum.
