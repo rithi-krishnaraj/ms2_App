@@ -1,11 +1,11 @@
 name: Build Executable for Windows on Release
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:
+  # push:
+  #   branches: [ "main" ]
+  # pull_request:
+  #   branches: [ "main" ]
+  # workflow_dispatch:
   release:
     types: [ "created" ]
 
@@ -39,6 +39,23 @@ jobs:
       run: |
         pyinstaller ms2_main.py --onefile --noconsole --name ms2_App
         echo "Executable built at dist/ms2_App.exe"
+    - name: Create Tag
+      run: |
+        git config user.name "${{ github.actor }}"
+        git config user.email "${{ github.actor }}@users.noreply.github.com"
+        git tag v1.0.0
+        git push origin v1.0.0
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v1.0.0
+        release_name: "Release v1.0.0"
+        draft: false
+        prerelease: false
 
     - name: Upload executable to GitHub Release
       uses: softprops/action-gh-release@v1
