@@ -320,102 +320,115 @@ if __name__ == "__main__":
                 st.header(f"GNPS FASTSearch for Scan {user_scan['Scan Number']}")
                 precursor_mz = user_scan["PEPMASS Number"]
                 charge = user_scan["Charge State"]
+                
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
                     library_select = st.selectbox("Select Library", LIBRARIES, key="library_select")
                     analog_select = st.selectbox("Analog Search", ["No", "Yes"], key="analog_select")
                 with col2:
-                    delta_mass_below = st.number_input("Delta Mass Below (Da)", value=130, key="delta_mass_below")
-                    delta_mass_above = st.number_input("Delta Mass Above (Da)", value=200, key="delta_mass_above")
+                    delta_mass_below = st.number_input("Delta Mass Below (Da)", value=130, min_value = 130, max_value = 130, key="delta_mass_below")
+                    delta_mass_above = st.number_input("Delta Mass Above (Da)", value=200, min_value = 200, max_value = 200, key="delta_mass_above")
                     cache_select = st.selectbox("Use Cache", ["Yes", "No"], key="cache_select")
                 with col3:
-                    pm_tolerance = st.number_input("PM Tolerance (Da)", min_value=0.0, value=0.05, step=0.05, key="pm_tolerance")
-                    fragment_tolerance = st.number_input("Fragment Mass Tolerance (Da)", min_value=0.0, value=0.05, step=0.05, key="fragment_tolerance")
+                    pm_tolerance = st.number_input("PM Tolerance (Da)", min_value=0.0, value=0.05, step=0.05, max_value = 0.4, key="pm_tolerance")
+                    fragment_tolerance = st.number_input("Fragment Mass Tolerance (Da)", min_value=0.0, value=0.05, step=0.05, max_value = 0.4, key="fragment_tolerance")
                     cosine_threshold = st.number_input("Cosine Similarity Threshold", min_value=0.0, max_value=1.0, value=0.7, step=0.05, key="cosine_threshold")
                 
                 peaks = user_scan["peaks"]
                 mz = user_scan["m/z data"]
                 intensity = user_scan["intensity data"]
+                
                 if st.button("Create GNPS FASTSearch Link", ):
                     with st.spinner("Creating GNPS Input Link..."):
                         gnpsLink = gnps_input_link(mz, intensity, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold)
                     st.write("GNPS Input Link Created with Scan Data!")
                     st.markdown(f"[Go to GNPS Link]({gnpsLink})", unsafe_allow_html=True)
-            
-                if st.button("View GNPS FAST Search Results: Selected Scan"):
-                    api_response = generate_webAPI(peaks, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold)
-                        
-                    if api_response and "results" in api_response:
-                        try:
-                            st.subheader("Matching Results")
-                            with st.spinner("Loading Matching USI Results..."):
-                                results_df = pd.DataFrame(api_response["results"], columns = ["Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"])
-                            with st.expander(f"View Matching USI Results for Scan {scan_input}", expanded=True):
-                                st.write("Total Matching USIs Found: ", len(results_df))
-                                selected_usi = st.selectbox("Select Matching USI for Metabolomics Resolver Spectrum Viewer", options=[""] + list(results_df["USI"].unique()))
-                                results = st.dataframe(results_df, hide_index=True)
-
-                            with st.spinner("Loading Metabolomics Resolver Spectrums..."): 
-                                if selected_usi:
-                                    spectrum_tabs = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum"])
-                                    with spectrum_tabs[0]:
-                                        try:
-                                            spectrum_top = sus.MsmsSpectrum(
-                                                mz=user_scan["m/z data"],
-                                                intensity=user_scan["intensity data"],
-                                                identifier=str(user_scan["Scan Number"]),
-                                                precursor_mz=user_scan["PEPMASS Number"],
-                                                precursor_charge=user_scan["Charge State"]
-                                            )
-                                            spectrum_bottom = sus.MsmsSpectrum.from_usi(
-                                                selected_usi,
-                                                precursor_mz=user_scan["PEPMASS Number"],
-                                                precursor_charge=user_scan["Charge State"]
-                                            )
-                                            
-                                            create_mirror_plot(spectrum_top, spectrum_bottom)
-                                        except Exception as e:
-                                            st.error(f"Failed to create unfiltered mirror plot: {e}")
-
-                                    with spectrum_tabs[1]:
-                                        try:
-                                            spectrum_top = sus.MsmsSpectrum(
-                                                mz=mz_filtered,
-                                                intensity=normal_filtered,
-                                                identifier=str(user_scan["Scan Number"]),
-                                                precursor_mz=user_scan["PEPMASS Number"],
-                                                precursor_charge=user_scan["Charge State"]
-                                            )
-
-                                            spectrum_bottom = sus.MsmsSpectrum.from_usi(
-                                                selected_usi,
-                                                precursor_mz = user_scan["PEPMASS Number"],
-                                                precursor_charge = user_scan["Charge State"])
-
-                                            usi_scan = {
-                                                "m/z data": spectrum_bottom.mz,
-                                                "intensity data": spectrum_bottom.intensity,
-                                                "Scan Number": spectrum_bottom.identifier,
-                                                "PEPMASS Number": spectrum_bottom.precursor_mz,
-                                                "Charge State": spectrum_bottom.precursor_charge
-                                            }
-                                            usi_mz_filtered, _, usi_normal_filtered = peak_filtering(usi_scan)
-                                            spectrum_bottom = sus.MsmsSpectrum(
-                                                mz=usi_mz_filtered,
-                                                intensity=usi_normal_filtered,
-                                                identifier=str(usi_scan["Scan Number"]),
-                                                precursor_mz=usi_scan["PEPMASS Number"],
-                                                precursor_charge=usi_scan["Charge State"]
-                                            )
-                                            create_mirror_plot(spectrum_top, spectrum_bottom)
-                                        except Exception as e:
-                                            st.error(f"Failed to create filtered mirror plot: {e}")
-                        except KeyError as e:
-                                st.error(f"No Matching Results Found")
-                    else: 
-                        st.error("No Matching Results Found")    
                 
+                
+                if 'clicked' not in st.session_state:
+                    st.session_state.clicked = False
+
+                def click_button():
+                    st.session_state.clicked = True
+
+                st.button('View GNPS FAST Search Results for Selected Scan', on_click=click_button)
+
+                selected_usi = None
+                results_df = None
+                results = None
+                api_response = None
+
+                if st.session_state.clicked:
+                    try:
+                        st.subheader("Matching Results")
+                        with st.spinner("Loading Matching USI Results..."):
+                            api_response = generate_webAPI(peaks, precursor_mz, charge, library_select, analog_select, cache_select, delta_mass_below, delta_mass_above, pm_tolerance, fragment_tolerance, cosine_threshold)
+                            results_df = pd.DataFrame(api_response["results"], columns = ["Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"])
+                        with st.expander(f"View Matching USI Results for Scan {scan_input}", expanded=False):
+                            st.write("Total Matching USIs Found: ", len(results_df))
+                            selected_usi = st.selectbox("Select Matching USI for Metabolomics Resolver Spectrum Viewer", options=[""] + list(results_df["USI"].unique()))
+                            results = st.dataframe(results_df, hide_index=True)
+
+                        with st.spinner("Loading Metabolomics Resolver Spectrums..."): 
+                            if selected_usi:
+                                spectrum_tabs = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum"])
+                                with spectrum_tabs[0]:
+                                    try:
+                                        spectrum_top = sus.MsmsSpectrum(
+                                            mz=user_scan["m/z data"],
+                                            intensity=user_scan["intensity data"],
+                                            identifier=str(user_scan["Scan Number"]),
+                                            precursor_mz=user_scan["PEPMASS Number"],
+                                            precursor_charge=user_scan["Charge State"]
+                                        )
+                                        spectrum_bottom = sus.MsmsSpectrum.from_usi(
+                                            selected_usi,
+                                            precursor_mz=user_scan["PEPMASS Number"],
+                                            precursor_charge=user_scan["Charge State"]
+                                        )
+                                        
+                                        create_mirror_plot(spectrum_top, spectrum_bottom)
+                                    except Exception as e:
+                                        st.error(f"Failed to create unfiltered mirror plot: {e}")
+
+                                with spectrum_tabs[1]:
+                                    try:
+                                        spectrum_top = sus.MsmsSpectrum(
+                                            mz=mz_filtered,
+                                            intensity=normal_filtered,
+                                            identifier=str(user_scan["Scan Number"]),
+                                            precursor_mz=user_scan["PEPMASS Number"],
+                                            precursor_charge=user_scan["Charge State"]
+                                        )
+
+                                        spectrum_bottom = sus.MsmsSpectrum.from_usi(
+                                            selected_usi,
+                                            precursor_mz = user_scan["PEPMASS Number"],
+                                            precursor_charge = user_scan["Charge State"])
+
+                                        usi_scan = {
+                                            "m/z data": spectrum_bottom.mz,
+                                            "intensity data": spectrum_bottom.intensity,
+                                            "Scan Number": spectrum_bottom.identifier,
+                                            "PEPMASS Number": spectrum_bottom.precursor_mz,
+                                            "Charge State": spectrum_bottom.precursor_charge
+                                        }
+                                        usi_mz_filtered, _, usi_normal_filtered = peak_filtering(usi_scan)
+                                        spectrum_bottom = sus.MsmsSpectrum(
+                                            mz=usi_mz_filtered,
+                                            intensity=usi_normal_filtered,
+                                            identifier=str(usi_scan["Scan Number"]),
+                                            precursor_mz=usi_scan["PEPMASS Number"],
+                                            precursor_charge=usi_scan["Charge State"]
+                                        )
+                                        create_mirror_plot(spectrum_top, spectrum_bottom)
+                                    except Exception as e:
+                                        st.error(f"Failed to create filtered mirror plot: {e}")
+                    except KeyError as e:
+                            st.error(f"No Matching Results Found")
+                
+
                 #Downloadable CSV Files
                 st.subheader("Download CSV Files")
                 st.write("Click the buttons below to run complete GNPS FASTSearch against all libraries with the above parameters for the selected scan or all scans. Download results in a CSV file.")
@@ -457,7 +470,7 @@ if __name__ == "__main__":
                                     st.download_button(
                                         label="Download GNPS Results in CSV File",
                                         data=csv_data,
-                                        file_name=f"{uploaded_file.name.split('.')[0]}_matchingUSIs_scan{scan_input}.csv",
+                                        file_name=(f"{uploaded_file.name.split('.')[0]}_matchingUSIs_scan{scan_input}.csv"),
                                         mime="text/csv"
                                     )
                                     st.success(f"File created successfully in {end_time-start_time:.2f} seconds!")
