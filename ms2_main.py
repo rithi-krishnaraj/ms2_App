@@ -266,6 +266,7 @@ if __name__ == "__main__":
     if uploaded_file is not None:
         
         file_type = uploaded_file.name.split(".")[-1].lower()
+        file_name = uploaded_file.name.split(".")[0]
         if file_type == "mgf":
             scan_numbers, scan_metadata = read_file(uploaded_file)
         elif file_type == "mzml":
@@ -518,7 +519,7 @@ if __name__ == "__main__":
                             st.download_button(
                                 label="Download GNPS Results in CSV File",
                                 data=csv_data,
-                                file_name=f"{uploaded_file.name.split(".")[0]}_matchingUSIs.csv",
+                                file_name=f"{file_name}_matchingUSIs.csv",
                                 mime="text/csv"
                             )
                             st.success(f"File created successfully in {end_time-start_time:.2f} seconds!")
