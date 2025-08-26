@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 ## Running the Application
 
-To run the Streamlit application, execute the following command:
+To run the Streamlit application locally, execute the following command:
 
 ```
 streamlit run ms2_main.py

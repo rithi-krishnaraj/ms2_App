@@ -12,7 +12,7 @@ import urllib.parse
 from xlsxwriter import Workbook
 from multiprocessing import Pool, cpu_count
 from pyteomics import mzml
-LIBRARIES = ["gnpsdata_index", "ORNL_Bioscales2", "ORNL_Populus_LC_MSMS", "gnpsdata_test_index", "gnpslibrary", "massivedata_index", "massivekb_index", "metabolomicspanrepo_index_latest", "metabolomicspanrepo_index_nightly", "panrepo_2024_11_12"]
+LIBRARIES = ["NORMAN", "ORNL_Bioscales2", "ORNL_Populus_LC_MSMS", "gnpsdata_index", "gnpsdata_test_index","gnpslibrary", "massivedata_index", "massivekb_index", "metabolomicspanrepo_index_latest", "metabolomicspanrepo_index_nightly", "panrepo_2024_11_12", "panrepo_2025_07_09", "panrepo_2025_08_06", "ptfi_index"]
 
 def create_mirror_plot(spectrum_top, spectrum_bottom):
     try:
@@ -321,16 +321,19 @@ if __name__ == "__main__":
                 st.header(f"GNPS FASTSearch for Scan {user_scan['Scan Number']}")
                 precursor_mz = user_scan["PEPMASS Number"]
                 charge = user_scan["Charge State"]
+              
                 
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    library_select = st.selectbox("Select Library", LIBRARIES, key="library_select")
+                    library_select = st.selectbox("Select Library", LIBRARIES, key="library_select", index = 3)
                     analog_select = st.selectbox("Analog Search", ["No", "Yes"], key="analog_select")
                 with col2:
-                    delta_mass_below = st.number_input("Delta Mass Below (Da)", value=130, min_value = 130, max_value = 130, key="delta_mass_below")
-                    delta_mass_above = st.number_input("Delta Mass Above (Da)", value=200, min_value = 200, max_value = 200, key="delta_mass_above")
+                    delta_mass_below = st.number_input("Delta Mass Below (Da)", value=130, min_value = 0, max_value = 300, key="delta_mass_below")
+                    delta_mass_above = st.number_input("Delta Mass Above (Da)", value=200, min_value = 0, max_value = 300, key="delta_mass_above")
                     cache_select = st.selectbox("Use Cache", ["Yes", "No"], key="cache_select")
+                    if delta_mass_below > delta_mass_above:
+                        st.error("Delta Mass Below cannot be greater than Delta Mass Above.")
                 with col3:
                     pm_tolerance = st.number_input("PM Tolerance (Da)", min_value=0.0, value=0.05, step=0.05, max_value = 0.4, key="pm_tolerance")
                     fragment_tolerance = st.number_input("Fragment Mass Tolerance (Da)", min_value=0.0, value=0.05, step=0.05, max_value = 0.4, key="fragment_tolerance")
