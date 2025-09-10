@@ -6,6 +6,8 @@ spectrum_utils
 plotly
 requests
 pyteomics
-xlsxwriter
-lxml
+requests
+json
+time
+tqdm
 pyinstaller==6.6.0
