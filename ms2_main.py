@@ -705,8 +705,3 @@ if __name__ == "__main__":
                             file_name=st.session_state.all_csv_filename,
                             mime="text/csv"
                         )
-
-        # st.info("Developed by Rithi Krishnaraj - Wang Bioinformatics Lab at University of California, Riverside")
-
-
-
