@@ -34,7 +34,8 @@ jobs:
         run: |
           pyinstaller ms2_main.py --onefile --noconsole --name ms2_App
           echo "Executable built at dist/ms2_App.exe"
-
+        working-directory: ${{ github.workspace }}
+        
       - name: Setup Python Embeddable Version
         run: |
           mkdir python-${{ env.PYTHON_VERSION }}
@@ -141,4 +142,5 @@ jobs:
               </InstallExecuteSequence>
               <UI>
                 <UIRef Id="WixUI_InstallDir"/>
-                <UIRef Id="WixUI_ErrorProgressT_
+                <UIRef Id="WixUI_ErrorProgressText"/>
+              </UI>
