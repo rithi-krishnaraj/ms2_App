@@ -7,6 +7,6 @@ plotly
 requests
 pyteomics
 requests
-json
 time
 tqdm
+pyinstaller
