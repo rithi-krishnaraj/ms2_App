@@ -6,7 +6,5 @@ spectrum_utils
 plotly
 requests
 pyteomics
-requests
-time
 tqdm
 pyinstaller

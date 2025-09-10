@@ -6,7 +6,5 @@ spectrum_utils==0.4.2
 plotly==6.3.0
 requests==2.31.0
 pyteomics==4.7.5
-requests==2.31.0
-time==1.0.0
 tqdm==4.65.0
 pyinstaller==6.6.0
