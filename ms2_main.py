@@ -243,16 +243,12 @@ def execute_all_queries_batch(queries):
             time.sleep(5)
         
         # Formatting all results
-        for status in status_results_list:
+        for status, query in zip(status_results_list, batch):
             if status.get("status") == "DONE":
                 results_df = pd.DataFrame(status.get("results", []))
-
-                # adding the scan number information
-                if "query_scan" in status:
-                    results_df["query_scan"] = status["query_scan"]
-                if "usi" in status:
-                    results_df["query_usi"] = status["usi"]
-
+                # Always add Scan Number and Library from the query
+                results_df["Scan Number"] = query["query_scan"]
+                results_df["Library"] = query["database"]
                 output_results_list.append(results_df)
 
     if len(output_results_list) == 0:
