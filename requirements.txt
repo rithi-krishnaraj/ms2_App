@@ -8,5 +8,6 @@ requests
 pyteomics
 tqdm
 numba
+lxml
 llvmlite
 pyinstaller
