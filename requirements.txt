@@ -7,4 +7,6 @@ plotly
 requests
 pyteomics
 tqdm
+numba
+llvmlite
 pyinstaller
