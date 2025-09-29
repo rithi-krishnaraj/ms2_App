@@ -174,13 +174,13 @@ def create_mirror_plot(spectrum_top, spectrum_bottom): #DONE
     try:
         fig, ax = plt.subplots(figsize=(12, 6))
         sup.mirror(spectrum_top, spectrum_bottom, ax=ax)
-        ax.set_title("Top: User Scan, Bottom: Selected USI", fontsize=16)
+        ax.set_title(f"Top: Scan {spectrum_top.identifier}, Bottom: Selected USI", fontsize=16)
         st.pyplot(fig)
     except Exception as e:
         st.error(f"Failed to create mirror plot: {e}")
 
 #For MASST Querying
-@st.cache_resource(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def execute_all_queries_batch(queries):
     output_results_list = []
 
@@ -373,6 +373,7 @@ if __name__ == "__main__":
     if uploaded_file is not None:
         file_type = uploaded_file.name.split(".")[-1].lower()
         file_name = uploaded_file.name.split(".")[0]
+        
         with st.spinner("Reading File and Extracting Scan Metadata..."):
             if file_type == "mgf":
                 scan_numbers, scan_metadata = read_mgf_file(uploaded_file)
@@ -396,7 +397,7 @@ if __name__ == "__main__":
                 st.session_state.scan_csv_data = None
                 st.session_state.all_csv_data = None
 
-            scan_input = st.selectbox("Select Scan Number to Run Analysis", options=[""] + scan_numbers, on_change=reset_scan)
+            scan_input = st.selectbox("Select Scan Number to Run Analysis", options=[""] + ["ALL SCANS"] + scan_numbers, on_change=reset_scan)
 
             #File Information
             st.header(f"{file_type.upper()} File Information ")
@@ -410,23 +411,27 @@ if __name__ == "__main__":
                 table = st.dataframe(df, hide_index=True)
 
              #Spectrum Visualization
-            if scan_input:
-                user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
-                mz_filtered, sqrt_filtered, normal_filtered = peak_filtering(user_scan)
-                with st.expander(f"View Spectrums for Scan {user_scan['Scan Number']}", expanded=False):
-                    show_plots = st.checkbox("Load Spectrum Plots")
-                    spectrum_option = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum - Normalized", "Filtered Spectrum - Square Root Normalized"])
-                    if show_plots:    
-                        with spectrum_option[0]:
-                            peak_visual(user_scan["m/z data"], user_scan["intensity data"], str(user_scan["Scan Number"]), user_scan["Precursor M/Z"], user_scan["Charge State"])
-                        with spectrum_option[1]:
-                            peak_visual(mz_filtered, normal_filtered, str(user_scan["Scan Number"]), user_scan["Precursor M/Z"], user_scan["Charge State"])
-                        with spectrum_option[2]:
-                            peak_visual(mz_filtered, sqrt_filtered, str(user_scan["Scan Number"]), user_scan["Precursor M/Z"], user_scan["Charge State"])
+            if (scan_input != "ALL SCANS") and (scan_input != ""):
+                if scan_input:
+                    user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
+                    mz_filtered, sqrt_filtered, normal_filtered = peak_filtering(user_scan)
+                    with st.expander(f"View Spectrums for Scan {user_scan['Scan Number']}", expanded=False):
+                        show_plots = st.checkbox("Load Spectrum Plots")
+                        spectrum_option = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum - Normalized", "Filtered Spectrum - Square Root Normalized"])
+                        if show_plots:    
+                            with spectrum_option[0]:
+                                peak_visual(user_scan["m/z data"], user_scan["intensity data"], str(user_scan["Scan Number"]), user_scan["Precursor M/Z"], user_scan["Charge State"])
+                            with spectrum_option[1]:
+                                peak_visual(mz_filtered, normal_filtered, str(user_scan["Scan Number"]), user_scan["Precursor M/Z"], user_scan["Charge State"])
+                            with spectrum_option[2]:
+                                peak_visual(mz_filtered, sqrt_filtered, str(user_scan["Scan Number"]), user_scan["Precursor M/Z"], user_scan["Charge State"])
 
             #GNPS FaastSearch Integration
             if scan_input:
-                st.header(f"GNPS FastSearch for Scan {scan_input}")
+                if scan_input != "ALL SCANS":
+                    st.header(f"GNPS FastSearch for Scan {scan_input}")
+                else:
+                    st.header("GNPS FastSearch for All Scans")
 
                 def reset_clicks():
                     st.session_state.clicked1 = False
@@ -434,6 +439,8 @@ if __name__ == "__main__":
                     st.session_state.clicked3 = False
                     st.session_state.scan_csv_data = None
                     st.session_state.all_csv_data = None    
+                
+                #st.info("After adjusting parameters, click the button below to run GNPS FASTSearch. Depending on the number of scans in the uploaded file, this process may take several minutes.")
 
                 library_select = st.selectbox("Select Library", LIBRARIES, key="library_select", index=3, on_change=reset_clicks)
                 col1, col2 = st.columns(2)
@@ -449,255 +456,252 @@ if __name__ == "__main__":
                     cosine_threshold = st.number_input("Cosine Similarity Threshold", min_value=0.0, max_value=1.0, value=0.7, step=0.05, key="cosine_threshold", on_change=reset_clicks)
 
                 analog_select = "Yes" if analog_select == "Yes" else "No"
+                
                 def click_button1():
                     st.session_state.clicked1 = True
+                    st.session_state.results_df = None  # Reset so we know to regenerate
 
                 if 'clicked1' not in st.session_state:
-                    st.session_state.clicked1 = False            
+                    st.session_state.clicked1 = False 
 
-                st.button(f"View GNPS FAST Search Results for Scan {scan_input}", on_click=click_button1)
+                if scan_input != "ALL SCANS":           
+                    st.button(f"View GNPS FAST Search Results for Scan {scan_input}", on_click=click_button1)
+                else: 
+                    st.button("View GNPS FAST Search Results for All Scans", on_click=click_button1)
+                
 
                 if st.session_state.clicked1:
                     try:
-                        st.subheader("Matching Results")
-                        with st.spinner("Running GNPS FASTSearch... This may take a few minutes."):
-                            user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
-                            if user_scan is None:
-                                st.error("Selected scan not found.")
+                        st.subheader("Matching USI Results")
+                        # Check if results_df is already in session_state
+                        if "results_df" in st.session_state and st.session_state.results_df is not None:
+                            results_df = st.session_state.results_df
+                        else:
+                            if scan_input != "ALL SCANS":
+                                with st.spinner("Running GNPS FASTSearch...."):
+                                    user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
+                                    if user_scan is None:
+                                        st.error("Selected scan not found.")
+                                    else:
+                                        precursor_mz = user_scan["Precursor M/Z"]
+                                        charge = user_scan["Charge State"]
+                                        peaks = user_scan["peaks"]
+                                        api_response = query_fasst_api_peaks(precursor_mz, charge, peaks, library_select, analog=(analog_select == "Yes"), precursor_mz_tol=pm_tolerance, fragment_mz_tol=fragment_tolerance, min_cos=cosine_threshold, lower_delta=delta_mass_below, upper_delta=delta_mass_above, blocking=True)
+                                        results_df = pd.DataFrame(api_response.get("results", []), columns=["Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"])
+                            else: 
+                                progress_text = "Processing all scans. Please wait..."
+                                my_bar = st.progress(0, text=progress_text)
+                                eta = st.empty()
+                                scan_status = st.empty()
+                                start_time = time.time()
+
+                                # Build queries for all scans
+                                queries = []
+                                for scan in scan_metadata:
+                                    queries.append({
+                                        "precursor_mz": scan["Precursor M/Z"],
+                                        "charge": scan["Charge State"],
+                                        "peaks": scan["peaks"],
+                                        "database": library_select,
+                                        "analog": (analog_select == "Yes"),
+                                        "precursor_mz_tol": pm_tolerance,
+                                        "fragment_mz_tol": fragment_tolerance,
+                                        "min_cos": cosine_threshold,
+                                        "lower_delta": delta_mass_below,
+                                        "upper_delta": delta_mass_above,
+                                        "query_scan": scan["Scan Number"],
+                                        "datasource": file_type
+                                    })
+
+                                total_scans = len(queries)
+                                batch_size = 50
+                                results_list = []
+                                scans_processed = 0
+
+                                for batch_idx, batch_start in enumerate(range(0, total_scans, batch_size)):
+                                    batch_end = min(batch_start + batch_size, total_scans)
+                                    batch = queries[batch_start:batch_end]
+                                    #scan_status.text(f"Processing scans {batch_start + 1} to {batch_end} of {total_scans}")
+                                    batch_start_time = time.time()
+                                    batch_results = execute_all_queries_batch(batch)
+                                    batch_duration = time.time() - batch_start_time
+
+                                    scans_processed += (batch_end - batch_start)
+                                    elapsed_time = time.time() - start_time
+                                    avg_time_per_scan = elapsed_time / scans_processed if scans_processed else 0
+                                    scans_left = total_scans - scans_processed
+                                    eta_seconds = int(avg_time_per_scan * scans_left)
+                                    eta.text(f"Estimated time remaining: {eta_seconds // 60} min {eta_seconds % 60} sec")
+
+                                    my_bar.progress(scans_processed / total_scans, text=f"Processed {scans_processed} of {total_scans} scans")
+
+                                    if not batch_results.empty:
+                                        results_list.append(batch_results)
+
+                                my_bar.empty()
+                                eta.empty()
+                                scan_status.empty()
+
+                                if results_list:
+                                    results_df = pd.concat(results_list, ignore_index=True)
+                                    desired_columns = [
+                                        "Scan Number", "Library", "Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"
+                                    ]
+                                    missing_cols = set(desired_columns) - set(results_df.columns)
+                                    for col in missing_cols:
+                                        results_df[col] = np.nan
+                                    results_df = results_df[desired_columns]
+                                else:
+                                    st.error("No matching results found for any scan in the selected library.")
+
+                        st.session_state.results_df = results_df  # Save to session_state
+
+                        # Use results_df from session_state for display and downloads
+                        results_df = st.session_state.get("results_df", None)
+
+                        if results_df is not None:
+                            with st.expander(f"View Matching USI Results for {scan_input}", expanded=False):
+                                st.write("Total Matching USIs Found: ", len(results_df))
+                                results = st.dataframe(results_df, hide_index=True)
+                            
+                            st.subheader("Metabolomics Resolver Spectrum Viewer")
+                            if scan_input != "ALL SCANS":
+                                selected_usi = st.selectbox("Select Matching USI", options=[""] + list(results_df["USI"].unique()))
                             else:
-                                precursor_mz = user_scan["Precursor M/Z"]
-                                charge = user_scan["Charge State"]
-                                peaks = user_scan["peaks"]
-                                api_response = query_fasst_api_peaks(precursor_mz, charge, peaks, library_select, analog=(analog_select == "Yes"), precursor_mz_tol=pm_tolerance, fragment_mz_tol=fragment_tolerance, min_cos=cosine_threshold, lower_delta=delta_mass_below, upper_delta=delta_mass_above, blocking=True)
-                                results_df = pd.DataFrame(api_response.get("results", []), columns=["Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"])
-                        with st.expander(f"View Matching USI Results for Scan {scan_input}", expanded=False):
-                            st.write("Total Matching USIs Found: ", len(results_df))
-                            selected_usi = st.selectbox("Select Matching USI for Metabolomics Resolver Spectrum Viewer", options=[""] + list(results_df["USI"].unique()))
-                            results = st.dataframe(results_df, hide_index=True)
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.selectbox("Select a Scan Number", options=[""] + scan_numbers, key="select_scan_number")
+                                with col2:
+                                    selected_scan_number = st.session_state.get("select_scan_number")
+                                    matching_usis = results_df[results_df["Scan Number"] == selected_scan_number]["USI"].unique().tolist()
+                                    st.selectbox("Select Matching USI", options=[""] + matching_usis, key="selected_usi")
 
-                        with st.spinner("Loading Metabolomics Resolver Spectrums..."): 
-                            if selected_usi:
-                                spectrum_tabs = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum"])
-                                with spectrum_tabs[0]:
-                                    try:
-                                        spectrum_top = sus.MsmsSpectrum(
-                                            mz=user_scan["m/z data"],
-                                            intensity=user_scan["intensity data"],
-                                            identifier=str(user_scan["Scan Number"]),
-                                            precursor_mz=user_scan["Precursor M/Z"],
-                                            precursor_charge=user_scan["Charge State"]
-                                        )
-                                        spectrum_bottom = sus.MsmsSpectrum.from_usi(
-                                            selected_usi,
-                                            precursor_mz=user_scan["Precursor M/Z"],
-                                            precursor_charge=user_scan["Charge State"]
-                                        )
-                                        
-                                        create_mirror_plot(spectrum_top, spectrum_bottom)
-                                    except Exception as e:
-                                        st.error(f"Mirror plot creation failed, selected USI may be from the uploaded file. - Try again with a different USI.")
+                            if scan_input == "ALL SCANS":
+                                #scan_input = st.session_state.get("scan_input")
+                                user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == selected_scan_number), None)
+                                if user_scan is not None:
+                                    mz_filtered, _, normal_filtered = peak_filtering(user_scan)
+                                selected_usi = st.session_state.get("selected_usi")
+                                
+                            with st.spinner("Loading Metabolomics Resolver Spectrums..."): 
+                                if selected_usi:
+                                    spectrum_tabs = st.tabs(["Unfiltered Spectrum", "Filtered Spectrum"])
+                                    with spectrum_tabs[0]:
+                                        try:
+                                            spectrum_top = sus.MsmsSpectrum(
+                                                mz=user_scan["m/z data"],
+                                                intensity=user_scan["intensity data"],
+                                                identifier=str(user_scan["Scan Number"]),
+                                                precursor_mz=user_scan["Precursor M/Z"],
+                                                precursor_charge=user_scan["Charge State"]
+                                            )
+                                            spectrum_bottom = sus.MsmsSpectrum.from_usi(
+                                                selected_usi,
+                                                precursor_mz=user_scan["Precursor M/Z"],
+                                                precursor_charge=user_scan["Charge State"]
+                                            )
+                                            
+                                            create_mirror_plot(spectrum_top, spectrum_bottom)
+                                        except Exception as e:
+                                            st.error(f"Mirror plot creation failed. Try again with a different USI.")
 
-                                with spectrum_tabs[1]:
-                                    try:
-                                        spectrum_top = sus.MsmsSpectrum(
-                                            mz=mz_filtered,
-                                            intensity=normal_filtered,
-                                            identifier=str(user_scan["Scan Number"]),
-                                            precursor_mz=user_scan["Precursor M/Z"],
-                                            precursor_charge=user_scan["Charge State"]
-                                        )
+                                    with spectrum_tabs[1]:
+                                        try:
+                                            spectrum_top = sus.MsmsSpectrum(
+                                                mz=mz_filtered,
+                                                intensity=normal_filtered,
+                                                identifier=str(user_scan["Scan Number"]),
+                                                precursor_mz=user_scan["Precursor M/Z"],
+                                                precursor_charge=user_scan["Charge State"]
+                                            )
 
-                                        spectrum_bottom = sus.MsmsSpectrum.from_usi(
-                                            selected_usi,
-                                            precursor_mz=user_scan["Precursor M/Z"],
-                                            precursor_charge=user_scan["Charge State"]
-                                        )
+                                            spectrum_bottom = sus.MsmsSpectrum.from_usi(
+                                                selected_usi,
+                                                precursor_mz=user_scan["Precursor M/Z"],
+                                                precursor_charge=user_scan["Charge State"]
+                                            )
 
-                                        usi_scan = {
-                                            "m/z data": spectrum_bottom.mz,
-                                            "intensity data": spectrum_bottom.intensity,
-                                            "Scan Number": spectrum_bottom.identifier,
-                                            "Precursor M/Z": spectrum_bottom.precursor_mz,
-                                            "Charge State": spectrum_bottom.precursor_charge
-                                        }
-                                        usi_mz_filtered, _, usi_normal_filtered = peak_filtering(usi_scan)
-                                        spectrum_bottom = sus.MsmsSpectrum(
-                                            mz=usi_mz_filtered,
-                                            intensity=usi_normal_filtered,
-                                            identifier=str(usi_scan["Scan Number"]),
-                                            precursor_mz=usi_scan["Precursor M/Z"],
-                                            precursor_charge=usi_scan["Charge State"]
+                                            usi_scan = {
+                                                "m/z data": spectrum_bottom.mz,
+                                                "intensity data": spectrum_bottom.intensity,
+                                                "Scan Number": spectrum_bottom.identifier,
+                                                "Precursor M/Z": spectrum_bottom.precursor_mz,
+                                                "Charge State": spectrum_bottom.precursor_charge
+                                            }
+                                            usi_mz_filtered, _, usi_normal_filtered = peak_filtering(usi_scan)
+                                            spectrum_bottom = sus.MsmsSpectrum(
+                                                mz=usi_mz_filtered,
+                                                intensity=usi_normal_filtered,
+                                                identifier=str(usi_scan["Scan Number"]),
+                                                precursor_mz=usi_scan["Precursor M/Z"],
+                                                precursor_charge=usi_scan["Charge State"]
+                                            )
+                                            create_mirror_plot(spectrum_top, spectrum_bottom)
+                                        except Exception as e:
+                                            st.error(f"Mirror plot creation failed. Try again with a different USI.")
+                                    # else:
+                                    #     st.info("Select a Scan Number and USI to view the Metabolomics Resolver Spectrum Viewer.")
+                    
+
+                            #Downloadable CSV Files
+                            st.subheader("Download CSV Files")
+                            st.write("Click the button below to download GNPS FASTSearch Results with the above parameters for the selected scan(s) in a CSV file.")
+
+                            def click_button2():
+                                st.session_state.clicked2 = True
+                                st.session_state.scan_csv_data = None  # Reset so we know to regenerate
+
+                            def click_button3():
+                                st.session_state.clicked3 = True
+                                st.session_state.all_csv_data = None  # Reset so we know to regenerate
+
+                            if 'clicked2' not in st.session_state:
+                                st.session_state.clicked2 = False
+                            if 'clicked3' not in st.session_state:
+                                st.session_state.clicked3 = False
+
+                            if scan_input != "ALL SCANS":
+                                if results_df is not None: 
+                                    selected_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
+                                    if selected_scan is not None:
+                                        results_df["Library"] = library_select
+                                        results_df["Scan Number"] = selected_scan["Scan Number"]
+                                        desired_columns = ["Scan Number", "Library", "Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
+                                        missing_cols = set(desired_columns) - set(results_df.columns)
+                                        for col in missing_cols:
+                                            results_df[col] = np.nan
+                                        results_df = results_df[desired_columns]
+                                        csv_data = results_df.to_csv(index=False).encode('utf-8')
+                                        st.session_state.scan_csv_data = csv_data
+                                        st.session_state.scan_csv_filename = f"{uploaded_file.name.split('.')[0]}_matchingUSIs_scan{scan_input}.csv"
+                                    
+                                    if st.session_state.get("scan_csv_data"):
+                                        st.download_button(
+                                            label=f"Download GNPS Results for Scan {scan_input} in CSV File",
+                                            data=st.session_state.scan_csv_data,
+                                            file_name=st.session_state.scan_csv_filename,
+                                            mime="text/csv"
                                         )
-                                        create_mirror_plot(spectrum_top, spectrum_bottom)
-                                    except Exception as e:
-                                        st.error(f"Mirror plot creation failed. Try again with a different USI.")
-                    except KeyError as e:
+                                else: 
+                                    st.error("No results found, cannot generate CSV file.")
+                            else:
+                                if results_df is not None:
+                                    csv_data = results_df.to_csv(index=False).encode('utf-8')
+                                    st.session_state.all_csv_data = csv_data
+                                    st.session_state.all_csv_filename = f"{uploaded_file.name.split('.')[0]}_matchingUSIs_allScans.csv"
+
+                                    st.download_button(
+                                        label="Download GNPS Results for All Scans in CSV File",
+                                        data=st.session_state.all_csv_data,
+                                        file_name=st.session_state.all_csv_filename,
+                                        mime="text/csv"
+                                    )
+                                else: 
+                                    st.error("No results found, cannot generate CSV file.")
+
+
+
+                    except Exception as e:
                         st.error("No matching results found. Please adjust your parameters and try again.")
-                #Downloadable CSV Files
-                st.subheader("Download CSV Files")
-                st.write("Click the buttons below to run complete GNPS FASTSearch against all libraries with the above parameters for the selected scan or all scans. Download results in a CSV file. Note: Depending on the number of scans in the uploaded file, this process may take several minutes to hours to complete.")
-                col1, col2 = st.columns(2)
 
-                def click_button2():
-                    st.session_state.clicked2 = True
-                    st.session_state.scan_csv_data = None  # Reset so we know to regenerate
-
-                def click_button3():
-                    st.session_state.clicked3 = True
-                    st.session_state.all_csv_data = None  # Reset so we know to regenerate
-
-                if 'clicked2' not in st.session_state:
-                    st.session_state.clicked2 = False
-                if 'clicked3' not in st.session_state:
-                    st.session_state.clicked3 = False
-
-                with col1:
-                    st.button(f"Generate Results for Scan {scan_input}", on_click=click_button2)
-                    # Only generate if button clicked and not already generated
-                    if st.session_state.clicked2 and st.session_state.get("scan_csv_data") is None:
-                        start_time = time.time()
-                        progress_text = "Processing selected scan against all libraries. Please wait..."
-                        my_bar = st.progress(0, text=progress_text)
-                        time_left_placeholder = st.empty()
-
-                        selected_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
-                        all_results = []
-                        total_libs = len(LIBRARIES)
-
-                        def update_progress(completed, total):
-                            percent = int(completed / total * 100)
-                            elapsed = time.time() - start_time
-                            if completed > 0:
-                                est_total = elapsed / completed * total
-                                est_left = est_total - elapsed
-                                time_left_placeholder.info(f"Estimated time left: {est_left:.1f} seconds")
-                            my_bar.progress(percent, text=progress_text)
-
-                        if selected_scan is not None:
-                            if file_type == "mgf":
-                                custom = "mgf"
-                            else:
-                                custom = "mzml"
-
-                            queries = []
-                            for library in LIBRARIES:
-                                query = { "datasource": custom, "precursor_mz": selected_scan["Precursor M/Z"], "charge": selected_scan["Charge State"], "peaks": selected_scan["peaks"], "database": library, "analog": (analog_select == "Yes"), "precursor_mz_tol": pm_tolerance, "fragment_mz_tol": fragment_tolerance, "min_cos": cosine_threshold, "lower_delta": delta_mass_below, "upper_delta": delta_mass_above, "query_scan": selected_scan["Scan Number"] }
-                                queries.append(query)
-
-                            results_list = []
-                            for idx, query in enumerate(queries):
-                                try:
-                                    result = query_fasst_api_peaks(query["precursor_mz"], query["charge"], query["peaks"], query["database"], analog=query["analog"], precursor_mz_tol=query["precursor_mz_tol"], fragment_mz_tol=query["fragment_mz_tol"], min_cos=query["min_cos"], lower_delta=query["lower_delta"], upper_delta=query["upper_delta"], blocking=True)
-                                    df = pd.DataFrame(result.get("results", []))
-                                    if not df.empty:
-                                        df["Library"] = query["database"]
-                                        df["Scan Number"] = query["query_scan"]
-                                        results_list.append(df)
-                                except Exception as e:
-                                    continue
-                                update_progress(idx + 1, total_libs)
-
-                            my_bar.empty()
-                            time_left_placeholder.empty()
-
-                            if results_list:
-                                results_df = pd.concat(results_list, ignore_index=True)
-                                desired_columns = ["Scan Number", "Library", "Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
-                                missing_cols = set(desired_columns) - set(results_df.columns)
-                                for col in missing_cols:
-                                    results_df[col] = np.nan
-                                results_df = results_df[desired_columns]
-                                csv_data = results_df.to_csv(index=False).encode('utf-8')
-                                st.session_state.scan_csv_data = csv_data
-                                st.session_state.scan_csv_filename = f"{uploaded_file.name.split('.')[0]}_matchingUSIs_scan{scan_input}.csv"
-                                st.success(f"File created successfully in {time.time()-start_time:.2f} seconds!")
-                            else:
-                                st.session_state.scan_csv_data = None
-                                st.error("No matching results found for the selected scan in any library with the current parameters.")
-                        else:
-                            st.session_state.scan_csv_data = None
-                            st.error("Selected scan not found.")
-
-                    # Show download button if CSV is available
-                    if st.session_state.get("scan_csv_data"):
-                        st.download_button(
-                            label="Download GNPS Results in CSV File",
-                            data=st.session_state.scan_csv_data,
-                            file_name=st.session_state.scan_csv_filename,
-                            mime="text/csv"
-                        )
-
-                with col2:
-                    st.button("Generate Results for All Scans", on_click=click_button3)
-                    if st.session_state.clicked3 and st.session_state.get("all_csv_data") is None:
-                        start_time = time.time()
-                        progress_text = "Processing all scans. Please wait..."
-                        my_bar = st.progress(0, text=progress_text)
-                        time_left_placeholder = st.empty()
-
-                        datasource = "mgf" if file_type == "mgf" else "mzml"
-                        queries = []
-                        for scan in scan_metadata:
-                            for library in LIBRARIES:
-                                query = {
-                                    "datasource": datasource,
-                                    "precursor_mz": scan["Precursor M/Z"],
-                                    "charge": scan["Charge State"],
-                                    "peaks": scan["peaks"],
-                                    "database": library,
-                                    "analog": (analog_select == "Yes"),
-                                    "precursor_mz_tol": pm_tolerance,
-                                    "fragment_mz_tol": fragment_tolerance,
-                                    "min_cos": cosine_threshold,
-                                    "lower_delta": delta_mass_below,
-                                    "upper_delta": delta_mass_above,
-                                    "query_scan": scan["Scan Number"]
-                                }
-                                queries.append(query)
-
-                        total_tasks = len(queries)
-                        batch_size = 50
-                        results_list = []
-                        for batch_start in range(0, total_tasks, batch_size):
-                            batch_queries = queries[batch_start:batch_start + batch_size]
-                            batch_results_df = execute_all_queries_batch(batch_queries)
-                            if not batch_results_df.empty:
-                                results_list.append(batch_results_df)
-                            completed = min(batch_start + batch_size, total_tasks)
-                            percent = int(completed / total_tasks * 100)
-                            elapsed = time.time() - start_time
-                            if completed > 0:
-                                est_total = elapsed / completed * total_tasks
-                                est_left = est_total - elapsed
-                                time_left_placeholder.info(f"Estimated time left: {est_left:.1f} seconds")
-                            my_bar.progress(percent, text=progress_text)
-
-                        my_bar.empty()
-                        time_left_placeholder.empty()
-
-                        if results_list:
-                            results_df = pd.concat(results_list, ignore_index=True)
-                            if "query_scan" in results_df.columns:
-                                results_df.rename(columns={"query_scan": "Scan Number"}, inplace=True)
-                            if "query_usi" in results_df.columns:
-                                results_df.rename(columns={"query_usi": "USI"}, inplace=True)
-                            desired_columns = ["Scan Number", "Library", "Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"]
-                            missing_cols = set(desired_columns) - set(results_df.columns)
-                            for col in missing_cols:
-                                results_df[col] = np.nan
-                            results_df = results_df[desired_columns]
-                            csv_data = results_df.to_csv(index=False).encode('utf-8')
-                            st.session_state.all_csv_data = csv_data
-                            st.session_state.all_csv_filename = f"{uploaded_file.name.split('.')[0]}_matchingUSIs_allScans.csv"
-                            st.success(f"File created successfully in {time.time()-start_time:.2f} seconds!")
-                        else:
-                            st.session_state.all_csv_data = None
-                            st.error("No matching results found for any scan in any library.")
-
-                    if st.session_state.get("all_csv_data"):
-                        st.download_button(
-                            label="Download GNPS Results in CSV File",
-                            data=st.session_state.all_csv_data,
-                            file_name=st.session_state.all_csv_filename,
-                            mime="text/csv"
-                        )
+                
