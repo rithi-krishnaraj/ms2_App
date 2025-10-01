@@ -1,6 +1,6 @@
 # MS2 Scan Analyzer
 
-This project is a Streamlit application designed for analyzing MS2 scans. It provides a user-friendly interface for uploading mass spectrometry data files, processing the data, and viewing/visualizing the results. 
+This project is a Streamlit application designed for analyzing MS2 scans. It provides a user-friendly interface for uploading mass spectrometry data files, processing the data against the GNPS FaastSearch, and viewing/visualizing the results. 
 
 ## Project Structure
 
