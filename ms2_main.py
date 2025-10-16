@@ -464,10 +464,11 @@ if __name__ == "__main__":
                 if 'clicked1' not in st.session_state:
                     st.session_state.clicked1 = False 
 
-                if scan_input != "ALL SCANS":           
+                if scan_input == "ALL SCANS":           
                     st.button(f"View GNPS FAAST Search Results for All Scans", on_click=click_button1)
+                else: 
+                    st.button(f"View GNPS FAAST Search Results for Scan {scan_input}", on_click=click_button1)
                 
-
                 if st.session_state.clicked1:
                     try:
                         st.subheader("Matching USI Results")
