@@ -429,9 +429,9 @@ if __name__ == "__main__":
             #GNPS FaastSearch Integration
             if scan_input:
                 if scan_input != "ALL SCANS":
-                    st.header(f"GNPS FastSearch for Scan {scan_input}")
+                    st.header(f"GNPS FaastSearch for Scan {scan_input}")
                 else:
-                    st.header("GNPS FastSearch for All Scans")
+                    st.header("GNPS FaastSearch for All Scans")
 
                 def reset_clicks():
                     st.session_state.clicked1 = False
@@ -440,7 +440,7 @@ if __name__ == "__main__":
                     st.session_state.scan_csv_data = None
                     st.session_state.all_csv_data = None    
                 
-                #st.info("After adjusting parameters, click the button below to run GNPS FASTSearch. Depending on the number of scans in the uploaded file, this process may take several minutes.")
+                #st.info("After adjusting parameters, click the button below to run GNPS FAASTSearch. Depending on the number of scans in the uploaded file, this process may take several minutes.")
 
                 library_select = st.selectbox("Select Library", LIBRARIES, key="library_select", index=3, on_change=reset_clicks)
                 col1, col2 = st.columns(2)
@@ -465,9 +465,7 @@ if __name__ == "__main__":
                     st.session_state.clicked1 = False 
 
                 if scan_input != "ALL SCANS":           
-                    st.button(f"View GNPS FAST Search Results for Scan {scan_input}", on_click=click_button1)
-                else: 
-                    st.button("View GNPS FAST Search Results for All Scans", on_click=click_button1)
+                    st.button(f"View GNPS FAAST Search Results for All Scans", on_click=click_button1)
                 
 
                 if st.session_state.clicked1:
@@ -478,7 +476,7 @@ if __name__ == "__main__":
                             results_df = st.session_state.results_df
                         else:
                             if scan_input != "ALL SCANS":
-                                with st.spinner("Running GNPS FASTSearch...."):
+                                with st.spinner("Running GNPS FAASTSearch...."):
                                     user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
                                     if user_scan is None:
                                         st.error("Selected scan not found.")
@@ -645,7 +643,7 @@ if __name__ == "__main__":
 
                             #Downloadable CSV Files
                             st.subheader("Download CSV Files")
-                            st.write("Click the button below to download GNPS FASTSearch Results with the above parameters for the selected scan(s) in a CSV file.")
+                            st.write("Click the button below to download GNPS FAASTSearch Results with the above parameters for the selected scan(s) in a CSV file.")
 
                             def click_button2():
                                 st.session_state.clicked2 = True
