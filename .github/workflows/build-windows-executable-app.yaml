@@ -73,7 +73,7 @@ jobs:
           cp ms2_main.py dist_folder/
           cp requirements-windows.txt dist_folder/
           cp README.md dist_folder/
-          cp LICENSE.txt dist_folder/
+          cp LICENSE.rtf dist_folder/
           cp "${{ env.APP_NAME }}.bat" dist_folder/
           cp ms2_scanicon.ico dist_folder/
 
