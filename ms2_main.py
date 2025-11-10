@@ -630,7 +630,7 @@ if __name__ == "__main__":
                                 eta.empty()
                                 scan_status.empty()
 
-                                if results_list:
+                                if results_list is not None and len(results_list) > 0:
                                     results_df = pd.concat(results_list, ignore_index=True)
                                     desired_columns = [
                                         "Scan Number", "Library", "Delta Mass", "USI", "Charge", "Cosine", "Matching Peaks", "Dataset", "Status"
@@ -647,7 +647,7 @@ if __name__ == "__main__":
                         # Use results_df from session_state for display and downloads
                         results_df = st.session_state.get("results_df", None)
 
-                        if results_df is not None:
+                        if results_df is not None and not results_df.empty:
                             with st.expander(f"View Matching USI Results for {scan_input}", expanded=False):
                                 st.write("Total Matching USIs Found: ", len(results_df))
                                 results = st.dataframe(results_df, hide_index=True)
@@ -730,7 +730,6 @@ if __name__ == "__main__":
                                     # else:
                                     #     st.info("Select a Scan Number and USI to view the Metabolomics Resolver Spectrum Viewer.")
                     
-
                             #Downloadable CSV Files
                             st.subheader("Download CSV Files")
                             st.write("Click the button below to download GNPS FASSTSearch Results with the above parameters for the selected scan(s) in a CSV file.")
@@ -749,7 +748,7 @@ if __name__ == "__main__":
                                 st.session_state.clicked3 = False
 
                             if scan_input != "ALL SCANS":
-                                if results_df is not None: 
+                                if results_df is not None and not results_df.empty: 
                                     selected_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
                                     if selected_scan is not None:
                                         results_df["Library"] = library_select
@@ -786,8 +785,8 @@ if __name__ == "__main__":
                                     )
                                 else: 
                                     st.error("No results found, cannot generate CSV file.")
-
-
+                        else:
+                            st.error("No matching results found. Please adjust your parameters and try again.")
 
                     except Exception as e:
                         st.error("No matching results found. Please adjust your parameters and try again.")
