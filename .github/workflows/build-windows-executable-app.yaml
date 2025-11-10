@@ -112,6 +112,13 @@ jobs:
           cp ShowSuccessMessage.vbs SourceDir
           echo "Sample License Text" > SourceDir/app_license.rtf
 
+      - name: Convert LICENSE.txt to app_license.rtf
+        run: |
+          powershell -Command "Add-Content SourceDir/app_license.rtf '{\rtf1\ansi\deff0 '"
+          powershell -Command "Get-Content LICENSE.txt | ForEach-Object { '\n' + $_ } | Add-Content SourceDir/app_license.rtf"
+          powershell -Command "Add-Content SourceDir/app_license.rtf '}'"
+
+
       - name: Generate streamlit_exe.wxs
         shell: bash
         run: |
