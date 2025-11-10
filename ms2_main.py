@@ -312,6 +312,51 @@ def query_fasst_api_peaks(precursor_mz, charge, peaks, database, host="https://a
     except KeyError:
         raise
 
+@st.cache_data(show_spinner=False)
+def execute_all_queries_sync(queries):
+    output_results_list = []
+
+    for query in tqdm(queries):
+        try:
+            results_dict = query_fasst_api_peaks(
+                query["precursor_mz"],
+                query["charge"],
+                query["peaks"],
+                query["database"],
+                analog=query["analog"],
+                precursor_mz_tol=query["precursor_mz_tol"],
+                fragment_mz_tol=query["fragment_mz_tol"],
+                min_cos=query["min_cos"],
+                lower_delta=query.get("lower_delta", 100),
+                upper_delta=query.get("upper_delta", 100),
+                blocking=True
+            )
+
+            if "status" in results_dict:
+                continue
+
+            results_df = pd.DataFrame(results_dict.get("results", []))
+
+            # adding the scan number information
+            #results_df["query_scan"] = query["query_scan"]
+            results_df["Scan Number"] = query["query_scan"]
+            results_df["Library"] = query["database"]
+            output_results_list.append(results_df)
+
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            print("Error in Query Execution:", e)
+            pass
+
+    if len(output_results_list) == 0:
+        print("No results found")
+        return pd.DataFrame()
+
+    output_results_df = pd.concat(output_results_list, ignore_index=True)
+
+    return output_results_df
+
 @st.cache_resource
 def get_results(query_parameters_dictionary, host="https://api.fasst.gnps2.org", blocking=True):
     task_id = query_parameters_dictionary.get("task_id")
@@ -364,6 +409,38 @@ def get_results(query_parameters_dictionary, host="https://api.fasst.gnps2.org",
 
 if __name__ == "__main__":
     st.title("MS2 Scan Analyzer")
+    with st.expander("ℹ️ About This App", expanded=False):
+        st.markdown("""
+        **MS2 Scan Analyzer** is an interactive web application for analyzing mass spectrometry MS2 data files. 
+        
+        This tool is designed for researchers working with metabolomics and mass spectrometry data, streamlining the process from raw data upload to advanced spectral matching and visualization.
+        
+        ---          
+        The app provides the following features:
+
+        - **📁 File Upload & Metadata Extraction:**  
+        Upload `.mgf` or `.mzML` files and automatically extract scan metadata, including precursor m/z, charge state, and spectrum information.
+
+        - **🔍 Scan Selection & Visualization:**  
+        Select individual scans to view and compare raw and filtered MS2 spectra using interactive plots.
+
+        - **🔗 GNPS FasstSearch Integration:**  
+        Search your scans against GNPS spectral libraries using customizable parameters (library, analog search, mass tolerances, cosine similarity threshold, delta mass ranges).
+
+        - **📊 Batch Search for All Scans:**  
+        Run GNPS FasstSearch for all scans in your file, with real-time progress bar and estimated time remaining.
+
+        - **🔬 Matching USI Results & Metabolomics Resolver:**  
+        View matching USIs for selected scans, and visualize mirror plots comparing your scan to library spectra.
+
+        - **📄 Downloadable Results:**  
+        Download search results for individual scans or all scans as CSV files.
+
+        - **💾 Session Persistence:**  
+        Results are cached and reused across reruns for faster interaction.
+
+        """)
+
     uploaded_file = st.file_uploader("Choose a file", type=["mgf", "mzML"])
     try:
         LIBRARIES = get_databases()
@@ -426,12 +503,12 @@ if __name__ == "__main__":
                             with spectrum_option[2]:
                                 peak_visual(mz_filtered, sqrt_filtered, str(user_scan["Scan Number"]), user_scan["Precursor M/Z"], user_scan["Charge State"])
 
-            #GNPS FaastSearch Integration
+            #GNPS FasstSearch Integration
             if scan_input:
                 if scan_input != "ALL SCANS":
-                    st.header(f"GNPS FaastSearch for Scan {scan_input}")
+                    st.header(f"GNPS FasstSearch for Scan {scan_input}")
                 else:
-                    st.header("GNPS FaastSearch for All Scans")
+                    st.header("GNPS FasstSearch for All Scans")
 
                 def reset_clicks():
                     st.session_state.clicked1 = False
@@ -440,7 +517,7 @@ if __name__ == "__main__":
                     st.session_state.scan_csv_data = None
                     st.session_state.all_csv_data = None    
                 
-                #st.info("After adjusting parameters, click the button below to run GNPS FAASTSearch. Depending on the number of scans in the uploaded file, this process may take several minutes.")
+                #st.info("After adjusting parameters, click the button below to run GNPS FASSTSearch. Depending on the number of scans in the uploaded file, this process may take several minutes.")
 
                 library_select = st.selectbox("Select Library", LIBRARIES, key="library_select", index=3, on_change=reset_clicks)
                 col1, col2 = st.columns(2)
@@ -465,9 +542,9 @@ if __name__ == "__main__":
                     st.session_state.clicked1 = False 
 
                 if scan_input == "ALL SCANS":           
-                    st.button(f"View GNPS FAAST Search Results for All Scans", on_click=click_button1)
+                    st.button(f"View GNPS FASST Search Results for All Scans", on_click=click_button1)
                 else: 
-                    st.button(f"View GNPS FAAST Search Results for Scan {scan_input}", on_click=click_button1)
+                    st.button(f"View GNPS FASST Search Results for Scan {scan_input}", on_click=click_button1)
                 
                 if st.session_state.clicked1:
                     try:
@@ -477,7 +554,7 @@ if __name__ == "__main__":
                             results_df = st.session_state.results_df
                         else:
                             if scan_input != "ALL SCANS":
-                                with st.spinner("Running GNPS FAASTSearch...."):
+                                with st.spinner("Running GNPS FASSTSearch...."):
                                     user_scan = next((scan for scan in scan_metadata if scan["Scan Number"] == scan_input), None)
                                     if user_scan is None:
                                         st.error("Selected scan not found.")
@@ -517,25 +594,37 @@ if __name__ == "__main__":
                                 results_list = []
                                 scans_processed = 0
 
-                                for batch_idx, batch_start in enumerate(range(0, total_scans, batch_size)):
-                                    batch_end = min(batch_start + batch_size, total_scans)
-                                    batch = queries[batch_start:batch_end]
-                                    #scan_status.text(f"Processing scans {batch_start + 1} to {batch_end} of {total_scans}")
-                                    batch_start_time = time.time()
-                                    batch_results = execute_all_queries_batch(batch)
-                                    batch_duration = time.time() - batch_start_time
+                                if total_scans > batch_size: 
+                                    for batch_idx, batch_start in enumerate(range(0, total_scans, batch_size)):
+                                        batch_end = min(batch_start + batch_size, total_scans)
+                                        batch = queries[batch_start:batch_end]
+                                        #scan_status.text(f"Processing scans {batch_start + 1} to {batch_end} of {total_scans}")
+                                        batch_start_time = time.time()
+                                        batch_results = execute_all_queries_batch(batch)
+                                        batch_duration = time.time() - batch_start_time
 
-                                    scans_processed += (batch_end - batch_start)
-                                    elapsed_time = time.time() - start_time
-                                    avg_time_per_scan = elapsed_time / scans_processed if scans_processed else 0
-                                    scans_left = total_scans - scans_processed
-                                    eta_seconds = int(avg_time_per_scan * scans_left)
-                                    eta.text(f"Estimated time remaining: {eta_seconds // 60} min {eta_seconds % 60} sec")
+                                        scans_processed += (batch_end - batch_start)
+                                        elapsed_time = time.time() - start_time
+                                        avg_time_per_scan = elapsed_time / scans_processed if scans_processed else 0
+                                        scans_left = total_scans - scans_processed
+                                        eta_seconds = int(avg_time_per_scan * scans_left)
+                                        eta.text(f"Estimated time remaining: {eta_seconds // 60} min {eta_seconds % 60} sec")
 
-                                    my_bar.progress(scans_processed / total_scans, text=f"Processed {scans_processed} of {total_scans} scans")
-
-                                    if not batch_results.empty:
-                                        results_list.append(batch_results)
+                                        my_bar.progress(scans_processed / total_scans, text=f"Processed {scans_processed} of {total_scans} scans")
+                                        if not batch_results.empty:
+                                            results_list.append(batch_results)
+                                else: 
+                                    for idx, query in enumerate(queries):
+                                        single_result = execute_all_queries_sync([query])
+                                        scans_processed += 1
+                                        elapsed_time = time.time() - start_time
+                                        avg_time_per_scan = elapsed_time / scans_processed if scans_processed else 0
+                                        scans_left = total_scans - scans_processed
+                                        eta_seconds = int(avg_time_per_scan * scans_left)
+                                        eta.text(f"Estimated time remaining: {eta_seconds // 60} min {eta_seconds % 60} sec")
+                                        my_bar.progress(scans_processed / total_scans, text=f"Processed {scans_processed} of {total_scans} scans")
+                                        if not single_result.empty:
+                                            results_list.append(single_result)
 
                                 my_bar.empty()
                                 eta.empty()
@@ -644,7 +733,7 @@ if __name__ == "__main__":
 
                             #Downloadable CSV Files
                             st.subheader("Download CSV Files")
-                            st.write("Click the button below to download GNPS FAASTSearch Results with the above parameters for the selected scan(s) in a CSV file.")
+                            st.write("Click the button below to download GNPS FASSTSearch Results with the above parameters for the selected scan(s) in a CSV file.")
 
                             def click_button2():
                                 st.session_state.clicked2 = True
