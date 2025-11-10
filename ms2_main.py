@@ -658,7 +658,7 @@ if __name__ == "__main__":
                             else:
                                 col1, col2 = st.columns(2)
                                 with col1:
-                                    st.selectbox("Select a Scan Number", options=[""] + scan_numbers, key="select_scan_number")
+                                    st.selectbox("Select a Scan Number", options=[""] + list(results_df["Scan Number"].unique()), key="select_scan_number")
                                 with col2:
                                     selected_scan_number = st.session_state.get("select_scan_number")
                                     matching_usis = results_df[results_df["Scan Number"] == selected_scan_number]["USI"].unique().tolist()
@@ -691,7 +691,7 @@ if __name__ == "__main__":
                                             
                                             create_mirror_plot(spectrum_top, spectrum_bottom)
                                         except Exception as e:
-                                            st.error(f"Mirror plot creation failed. Try again with a different USI.")
+                                            st.error(f"Currently unable to create mirror plot, please try again later.")
 
                                     with spectrum_tabs[1]:
                                         try:
@@ -726,7 +726,7 @@ if __name__ == "__main__":
                                             )
                                             create_mirror_plot(spectrum_top, spectrum_bottom)
                                         except Exception as e:
-                                            st.error(f"Mirror plot creation failed. Try again with a different USI.")
+                                            st.error(f"Currently unable to create mirror plot, please try again later.")
                                     # else:
                                     #     st.info("Select a Scan Number and USI to view the Metabolomics Resolver Spectrum Viewer.")
                     
