@@ -12,7 +12,7 @@ jobs:
     runs-on: windows-latest
 
     env:
-      PYTHON_VERSION: 3.11.0
+      PYTHON_VERSION: 3.9.0
       APP_NAME: MS2-Scan-Analyzer
 
     steps:
