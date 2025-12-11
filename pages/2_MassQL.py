@@ -1,0 +1,194 @@
+import streamlit as st
+import pandas as pd
+from massql import msql_parser
+from massql import msql_engine
+import os
+import easygui
+from pathlib import Path
+
+# Page configuration
+st.set_page_config(
+    page_title="MassQL - Mass Spec Data Search",
+    page_icon="🔬",
+    layout="wide"
+)
+
+st.title("🔬 MassQL - Mass Spectrometry Data Search")
+
+# Sidebar for file selection
+st.sidebar.header("Data Source Configuration")
+st.sidebar.markdown("""(Minimize Browser Window to View System Dialogs)""")
+
+# Folder selection using easygui
+if st.sidebar.button("📂 Choose Folder"):
+    folder_path = easygui.diropenbox(title="Select a folder with mass spec files")
+    if folder_path:
+        st.session_state['selected_folder'] = folder_path
+
+# Show selected folder
+folder_path = st.session_state.get('selected_folder', None)
+if folder_path:
+    st.sidebar.success(f"Selected folder:\n{folder_path}")
+
+    # List valid files in the folder
+    valid_exts = ('.mzml', '.mzxml', '.mgf', '.msp')
+    files = [str(f) for f in Path(folder_path).glob("*") if f.suffix.lower() in valid_exts]
+
+    if files:
+        selected_files = st.sidebar.multiselect(
+            "Select data files",
+            options=files,
+            default=files[:1],  # Optionally pre-select the first file
+            format_func=lambda x: os.path.basename(x)
+        )
+    else:
+        st.sidebar.warning("No valid mass spec files found in this folder.")
+        selected_files = []
+else:
+    selected_files = []
+
+# Main content area
+st.header("MassQL Query")
+# Information section
+with st.expander("ℹ️ About MassQL"):
+    st.markdown("""
+    **MassQL** is a query language for mass spectrometry data that allows you to:
+    
+    - Search for specific ions and fragments
+    - Filter spectra by retention time, m/z values, and intensity
+    - Perform complex queries across multiple data files
+    - Extract and analyze specific spectral features
+    
+    **Supported File Formats:**
+    - mzML
+    - mzXML
+    - MGF
+    - MSP
+    
+    **Learn More:** [MassQL Documentation](https://mwang87.github.io/MassQueryLanguage_Documentation/)
+    """)
+
+# Query input
+query = st.text_area(
+    "Enter your MassQL query",
+    value="QUERY scaninfo(MS2DATA)",
+    height=150,
+    help="Enter a MassQL query to search your mass spec data"
+)
+
+# Example queries
+with st.expander("📖 Example Queries"):
+    st.code("""
+# Find MS2 spectra with a specific product ion
+QUERY scaninfo(MS2DATA) WHERE MS2PROD=226.1:TOLERANCEPPM=10
+
+# Find precursor ions in a mass range
+QUERY scaninfo(MS2DATA) WHERE MS2PREC=100-500
+
+# Find spectra with retention time filter
+QUERY scaninfo(MS2DATA) WHERE RT=1-5 AND MS2PROD=100:TOLERANCEPPM=20
+
+# Complex query with multiple conditions
+QUERY scaninfo(MS2DATA) WHERE MS2PROD=226.1:TOLERANCEPPM=10 AND MS2PREC=300-400
+    """, language="sql")
+
+# Search button
+col1, col2, col3 = st.columns([1, 1, 2])
+
+with col1:
+    search_button = st.button("🔍 Run Query", type="primary", use_container_width=True)
+
+with col2:
+    clear_button = st.button("🗑️ Clear Results", use_container_width=True)
+
+# Results section
+if search_button and selected_files and query:
+    st.header("Search Results")
+    
+    with st.spinner("Searching mass spec data..."):
+        try:
+            results_container = st.container()
+            
+            for file_path in selected_files:
+                with results_container:
+                    st.subheader(f"📄 {os.path.basename(file_path)}")
+                    
+                    try:                        
+                        # Execute query directly without parsing separately
+                        results = msql_engine.process_query(
+                            query,  # Pass query string directly
+                            str(file_path)
+                        )
+                        
+                        # Check if results exist (results is already a DataFrame)
+                        if results is not None and not results.empty:
+                            st.success(f"Found {len(results)} matching spectra")
+                            
+                            # Display results in a dataframe
+                            st.dataframe(
+                                results,
+                                use_container_width=True,
+                                height=300, 
+                                hide_index=True
+                            )
+                            
+                            # Download button for results
+                            csv = results.to_csv(index=False)
+                            st.download_button(
+                                label="📥 Download Results as CSV",
+                                data=csv,
+                                file_name=f"massql_results_{os.path.basename(file_path)}.csv",
+                                mime="text/csv"
+                            )
+                        else:
+                            st.warning("No matching spectra found")
+                            
+                    except Exception as e:
+                        error_msg = str(e)
+                        
+                        # Parse the error for better user experience
+                        if "UnexpectedCharacters" in error_msg or "No terminal matches" in error_msg:
+                            st.error("""❌ **Query Syntax Error**                          
+                            Common issues:
+                            - Missing `WHERE` or `FILTER` keyword after the function
+                            - Incorrect condition syntax
+                            - Invalid function names
+
+                            **Correct format:** `QUERY scaninfo(MS2DATA) WHERE MS2PROD=226.1:TOLERANCEPPM=10`
+
+                            Please check the example queries above for correct syntax.""")
+                        
+                        elif "process_query" in error_msg or "parse" in error_msg:
+                            st.error(f"""❌ **File Processing Error**
+                            
+                            Could not process the file: `{os.path.basename(file_path)}`
+
+                            Possible reasons:
+                            - File format not supported or corrupted
+                            - Insufficient permissions
+                            - File is currently open in another program""")
+                                                
+                        else:
+                            st.error(f"❌ **Error processing file**: {os.path.basename(file_path)}\n\nPlease verify your query syntax and file format.")
+                    
+                    st.divider()
+                    
+        except Exception as e:
+            st.error("❌ **Query Execution Error**")
+            st.markdown("""
+            An error occurred while executing your query.
+            
+            Please:
+            1. Check your query syntax using the examples below
+            2. Verify that your data files are valid and accessible
+            3. Ensure you have the correct file format (mzML, mzXML, MGF, or MSP)
+            """)
+
+elif search_button and not selected_files:
+    st.warning("⚠️ Please select at least one data file to search.")
+
+elif search_button and not query:
+    st.warning("⚠️ Please enter a MassQL query.")
+
+
+
