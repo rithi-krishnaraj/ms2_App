@@ -59,31 +59,6 @@ jobs:
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install numpy --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install -r requirements-windows.txt --no-warn-script-location
 
-      - name: Create Streamlit Config Directory
-        run: |
-          mkdir .streamlit
-
-      - name: Create Streamlit Config for Network Access
-        shell: bash
-        run: |
-          cat <<EOF > .streamlit/config.toml
-          [server]
-          # Use localhost for local access
-          address = "localhost"
-          
-          # HEADLESS MODE: Prevents the backend from trying to pop a window (the BAT file handles this)
-          headless = true
-          
-          # Enable CORS for all origins
-          enableCORS = false
-          enableXsrfProtection = false
-          
-          [browser]
-          # Allow browser to open
-          gatherUsageStats = false
-          serverAddress = "localhost"
-          EOF
-
       - name: Create Advanced Launcher BAT File
         shell: bash
         run: |
@@ -91,21 +66,17 @@ jobs:
           @echo off
           setlocal enabledelayedexpansion
           
-          :: ---------------------------------------------------------------------------
-          :: SETUP: Prevent writing to Program Files to avoid crashing on standard user accounts
-          :: ---------------------------------------------------------------------------
-          set "STREAMLIT_CONFIG_DIR=%TEMP%\.streamlit"
+          set "APP_DIR=%~dp0"
+          cd /d "%APP_DIR%"
+          
+          set "STREAMLIT_CONFIG_DIR=%APP_DIR%.streamlit"
           set "MPLCONFIGDIR=%TEMP%\matplotlib"
           
-          :: ---------------------------------------------------------------------------
-          :: CLEANUP: Kill old instances of this specific app
-          :: ---------------------------------------------------------------------------
-          taskkill /F /IM python.exe /FI "WINDOWTITLE eq StreamlitBackend*" 2>nul >nul
-          timeout /t 1 /nobreak >nul
+          if not exist "%STREAMLIT_CONFIG_DIR%" mkdir "%STREAMLIT_CONFIG_DIR%"
           
-          :: ---------------------------------------------------------------------------
-          :: PORT DISCOVERY: Find a free port between 8501 and 8600
-          :: ---------------------------------------------------------------------------
+          taskkill /F /IM python.exe /FI "WINDOWTITLE eq StreamlitBackend*" 2>nul >nul
+          timeout /t 2 /nobreak >nul
+          
           set PORT=8501
           set MAX_PORT=8600
           
@@ -114,49 +85,48 @@ jobs:
           if !errorlevel! equ 0 (
               set /a PORT+=1
               if !PORT! leq %MAX_PORT% goto FIND_PORT
-              echo ERROR: No available ports found between 8501 and 8600.
               pause
               exit /b 1
           )
           
-          echo Starting ${{ env.APP_NAME }} on port !PORT!...
+          start "StreamlitBackend" /B "%APP_DIR%python-${{ env.PYTHON_VERSION }}\python.exe" -m streamlit run "%APP_DIR%ms2_main.py" --server.port !PORT! --server.address localhost --server.headless true --browser.gatherUsageStats false --server.enableCORS false --server.enableXsrfProtection false
           
-          :: ---------------------------------------------------------------------------
-          :: EXECUTION: Start Streamlit in Background (Hidden)
-          :: ---------------------------------------------------------------------------
-          start "StreamlitBackend" /B .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port !PORT! --server.address localhost --server.headless true --browser.gatherUsageStats false
-          
-          :: ---------------------------------------------------------------------------
-          :: WAIT LOOP: Wait for the server to actually be ready
-          :: ---------------------------------------------------------------------------
-          echo Waiting for application to initialize...
           set /a RETRY_COUNT=0
           
           :CHECK_URL
-          timeout /t 1 /nobreak >nul
+          timeout /t 2 /nobreak >nul
           netstat -an | findstr ":!PORT! " | findstr "LISTENING" >nul
           if !errorlevel! neq 0 (
               set /a RETRY_COUNT+=1
-              if !RETRY_COUNT! leq 15 goto CHECK_URL
-              echo.
-              echo Warning: Server is taking a long time to start. Opening browser anyway...
+              if !RETRY_COUNT! leq 20 goto CHECK_URL
+              pause
+              exit /b 1
           )
           
-          :: ---------------------------------------------------------------------------
-          :: LAUNCH: Open the default web browser
-          :: ---------------------------------------------------------------------------
           start "" "http://localhost:!PORT!"
           
-          echo.
-          echo -------------------------------------------------------
-          echo  ${{ env.APP_NAME }} is running!
-          echo  Local URL: http://localhost:!PORT!
-          echo -------------------------------------------------------
-          echo.
-          echo  Keep this window open to keep the application running.
-          echo  Close this window to stop the application.
-          
           pause >nul
+          
+          taskkill /F /IM python.exe /FI "WINDOWTITLE eq StreamlitBackend*" 2>nul >nul
+          EOF
+
+      - name: Create Streamlit Config File
+        shell: bash
+        run: |
+          mkdir -p .streamlit
+          cat <<EOF > .streamlit/config.toml
+          [server]
+          address = "localhost"
+          headless = true
+          enableCORS = false
+          enableXsrfProtection = false
+          
+          [browser]
+          gatherUsageStats = false
+          serverAddress = "localhost"
+          
+          [logger]
+          level = "info"
           EOF
 
       - name: Convert PNG icon to ICO
@@ -169,11 +139,37 @@ jobs:
           mv python-${{ env.PYTHON_VERSION }} dist_folder/
           mv .streamlit dist_folder/
           cp ms2_main.py dist_folder/
+          cp 2_MassQL.py dist_folder/ 2>nul || echo "MassQL file not found, skipping"
           cp requirements-windows.txt dist_folder/
           cp README.md dist_folder/
-          cp LICENSE.rtf dist_folder/
+          cp LICENSE.rtf dist_folder/ 2>nul || echo "LICENSE.rtf not found"
           cp "${{ env.APP_NAME }}.bat" dist_folder/
           cp ms2_scanicon.ico dist_folder/
+
+      - name: Create Debug Launch Script
+        shell: bash
+        run: |
+          cat <<'EOF' > dist_folder/debug_launch.bat
+          @echo off
+          set "APP_DIR=%~dp0"
+          cd /d "%APP_DIR%"
+          
+          "%APP_DIR%python-${{ env.PYTHON_VERSION }}\python.exe" --version
+          if %errorlevel% neq 0 (
+              pause
+              exit /b 1
+          )
+          
+          "%APP_DIR%python-${{ env.PYTHON_VERSION }}\python.exe" -m streamlit --version
+          if %errorlevel% neq 0 (
+              pause
+              exit /b 1
+          )
+          
+          "%APP_DIR%python-${{ env.PYTHON_VERSION }}\python.exe" -m streamlit run "%APP_DIR%ms2_main.py" --server.port 8501
+          
+          pause
+          EOF
 
       - name: Create Firewall Setup Script
         shell: bash
@@ -182,17 +178,15 @@ jobs:
           @echo off
           netsh advfirewall firewall add rule name="${{ env.APP_NAME }}" dir=in action=allow protocol=TCP localport=8501-8600 enable=yes
           if %errorlevel% equ 0 (
-              echo Firewall configured successfully
+              pause
           ) else (
-              echo Failed - run as Administrator
+              pause
           )
-          pause
           EOF
           
           cat <<'EOF' > dist_folder/kill_streamlit.bat
           @echo off
           taskkill /F /IM python.exe 2>nul
-          echo Streamlit processes stopped
           pause
           EOF
 
@@ -207,6 +201,11 @@ jobs:
           2. Double-click **${{ env.APP_NAME }}.bat**
           3. Your default browser will automatically open to http://localhost:[PORT]
           4. The console window will show the exact URL and port being used
+          
+          ## If the app won't start:
+          1. Double-click **debug_launch.bat** to see detailed error messages
+          2. This will help identify if there's a missing dependency or configuration issue
+          3. Keep the debug window open and check for error messages
           
           ## Network Access:
           - **Local access**: http://localhost:[PORT] (automatically opens in browser)
@@ -232,6 +231,7 @@ jobs:
           3. This will allow incoming connections on ports 8501-8600
           
           ## Troubleshooting:
+          - **App won't start**: Run **debug_launch.bat** to see error messages
           - **Port conflicts**: The app automatically finds free ports (8501-8600)
           - **Browser not opening**: Check console for URL and open manually
           - **Old version showing**: Run kill_streamlit.bat and clear browser cache
@@ -240,6 +240,7 @@ jobs:
           
           ## Utility Scripts:
           - **${{ env.APP_NAME }}.bat** - Start the application
+          - **debug_launch.bat** - Start with detailed error messages (troubleshooting)
           - **kill_streamlit.bat** - Stop all Streamlit processes
           - **configure_firewall.bat** - Configure Windows Firewall (requires Admin)
           
@@ -260,7 +261,7 @@ jobs:
         shell: bash
         run: |
           cat <<EOF > ShowSuccessMessage.vbs
-          MsgBox "The ${{ env.APP_NAME }} application was installed successfully." & vbCrLf & vbCrLf & "For network access, run configure_firewall.bat as Administrator.", vbInformation, "Installation Complete"
+          MsgBox "The ${{ env.APP_NAME }} application was installed successfully." & vbCrLf & vbCrLf & "For network access, run configure_firewall.bat as Administrator." & vbCrLf & vbCrLf & "If the app won't start, run debug_launch.bat to see error messages.", vbInformation, "Installation Complete"
           EOF
 
       - name: Prepare SourceDir
@@ -328,6 +329,4 @@ jobs:
             ${{ env.APP_NAME }}.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
   
