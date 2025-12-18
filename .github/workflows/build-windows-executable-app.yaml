@@ -28,6 +28,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable with PyInstaller
+        run: |
+          pyinstaller ms2_main.py --onefile --noconsole --name ms2_App
+          echo "Executable built at dist/ms2_App.exe"
 
       - name: Setup Python Embeddable Version
         run: |
@@ -42,76 +48,203 @@ jobs:
           ./python-${{ env.PYTHON_VERSION }}/python get-pip.py --no-warn-script-location
           rm get-pip.py
 
-      - name: Uncomment import site
-        shell: bash
+      - name: Enable site-packages
         run: |
-          sed -i 's/#import site/import site/' python-${{ env.PYTHON_VERSION }}/python*._pth
+          $pthFile = Get-ChildItem -Path "python-${{ env.PYTHON_VERSION }}" -Filter "*._pth" | Select-Object -First 1
+          (Get-Content $pthFile.FullName) -replace '#import site', 'import site' | Set-Content $pthFile.FullName
 
       - name: Install Required Packages
-        run: .\python-${{ env.PYTHON_VERSION }}\python -m pip install --force-reinstall -r requirements-windows.txt --no-warn-script-location
+        run: |
+          .\python-${{ env.PYTHON_VERSION }}\python -m pip install Cython --no-warn-script-location
+          .\python-${{ env.PYTHON_VERSION }}\python -m pip install numpy --no-warn-script-location
+          .\python-${{ env.PYTHON_VERSION }}\python -m pip install -r requirements-windows.txt --no-warn-script-location
 
-      - name: Create Streamlit Config
-        shell: bash
+      - name: Create Streamlit Config Directory
         run: |
           mkdir .streamlit
+
+      - name: Create Streamlit Config for Network Access
+        shell: bash
+        run: |
           cat <<EOF > .streamlit/config.toml
           [server]
+          # Use localhost for local access
           address = "localhost"
+          
+          # HEADLESS MODE: Prevents the backend from trying to pop a window (the BAT file handles this)
           headless = true
+          
+          # Enable CORS for all origins
           enableCORS = false
           enableXsrfProtection = false
+          
           [browser]
+          # Allow browser to open
           gatherUsageStats = false
           serverAddress = "localhost"
           EOF
 
-      - name: Convert PNG icon to ICO
-        run: magick ms2_scanicon.png -resize 256x256 ms2_scanicon.ico
-
-      - name: Create Launcher BAT File
+      - name: Create Advanced Launcher BAT File
         shell: bash
         run: |
           cat <<'EOF' > ${{ env.APP_NAME }}.bat
           @echo off
           setlocal enabledelayedexpansion
+          
+          :: ---------------------------------------------------------------------------
+          :: SETUP: Prevent writing to Program Files to avoid crashing on standard user accounts
+          :: ---------------------------------------------------------------------------
           set "STREAMLIT_CONFIG_DIR=%TEMP%\.streamlit"
           set "MPLCONFIGDIR=%TEMP%\matplotlib"
+          
+          :: ---------------------------------------------------------------------------
+          :: CLEANUP: Kill old instances of this specific app
+          :: ---------------------------------------------------------------------------
           taskkill /F /IM python.exe /FI "WINDOWTITLE eq StreamlitBackend*" 2>nul >nul
+          timeout /t 1 /nobreak >nul
+          
+          :: ---------------------------------------------------------------------------
+          :: PORT DISCOVERY: Find a free port between 8501 and 8600
+          :: ---------------------------------------------------------------------------
           set PORT=8501
           set MAX_PORT=8600
+          
           :FIND_PORT
           netstat -an | findstr ":!PORT! " | findstr "LISTENING" >nul
           if !errorlevel! equ 0 (
               set /a PORT+=1
               if !PORT! leq %MAX_PORT% goto FIND_PORT
+              echo ERROR: No available ports found between 8501 and 8600.
+              pause
               exit /b 1
           )
+          
+          echo Starting ${{ env.APP_NAME }} on port !PORT!...
+          
+          :: ---------------------------------------------------------------------------
+          :: EXECUTION: Start Streamlit in Background (Hidden)
+          :: ---------------------------------------------------------------------------
           start "StreamlitBackend" /B .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port !PORT! --server.address localhost --server.headless true --browser.gatherUsageStats false
+          
+          :: ---------------------------------------------------------------------------
+          :: WAIT LOOP: Wait for the server to actually be ready
+          :: ---------------------------------------------------------------------------
+          echo Waiting for application to initialize...
           set /a RETRY_COUNT=0
+          
           :CHECK_URL
           timeout /t 1 /nobreak >nul
           netstat -an | findstr ":!PORT! " | findstr "LISTENING" >nul
           if !errorlevel! neq 0 (
               set /a RETRY_COUNT+=1
               if !RETRY_COUNT! leq 15 goto CHECK_URL
+              echo.
+              echo Warning: Server is taking a long time to start. Opening browser anyway...
           )
+          
+          :: ---------------------------------------------------------------------------
+          :: LAUNCH: Open the default web browser
+          :: ---------------------------------------------------------------------------
           start "" "http://localhost:!PORT!"
+          
+          echo.
+          echo -------------------------------------------------------
+          echo  ${{ env.APP_NAME }} is running!
+          echo  Local URL: http://localhost:!PORT!
+          echo -------------------------------------------------------
+          echo.
+          echo  Keep this window open to keep the application running.
+          echo  Close this window to stop the application.
+          
           pause >nul
           EOF
 
+      - name: Convert PNG icon to ICO
+        run: |
+          magick ms2_scanicon.png -resize 256x256 ms2_scanicon.ico
+
       - name: Create Executable Folder
         run: |
-          mkdir streamlit_exe
-          mv python-${{ env.PYTHON_VERSION }} streamlit_exe/
-          mv .streamlit streamlit_exe/
-          cp ms2_main.py streamlit_exe/
-          if (Test-Path -Path "pages") { cp -r pages streamlit_exe/ }
-          if (Test-Path -Path "src") { cp -r src streamlit_exe/ }
-          if (Test-Path -Path "assets") { cp -r assets streamlit_exe/ }
-          cp requirements-windows.txt streamlit_exe/
-          cp README.md streamlit_exe/
-          cp LICENSE.rtf streamlit_exe/
-          cp "${{ env.APP_NAME }}.bat" streamlit_exe/
+          mkdir dist_folder
+          mv python-${{ env.PYTHON_VERSION }} dist_folder/
+          mv .streamlit dist_folder/
+          cp ms2_main.py dist_folder/
+          cp requirements-windows.txt dist_folder/
+          cp README.md dist_folder/
+          cp LICENSE.rtf dist_folder/
+          cp "${{ env.APP_NAME }}.bat" dist_folder/
+          cp ms2_scanicon.ico dist_folder/
+
+      - name: Create Firewall Setup Script
+        shell: bash
+        run: |
+          cat <<'EOF' > dist_folder/configure_firewall.bat
+          @echo off
+          netsh advfirewall firewall add rule name="${{ env.APP_NAME }}" dir=in action=allow protocol=TCP localport=8501-8600 enable=yes
+          if %errorlevel% equ 0 (
+              echo Firewall configured successfully
+          ) else (
+              echo Failed - run as Administrator
+          )
+          pause
+          EOF
+          
+          cat <<'EOF' > dist_folder/kill_streamlit.bat
+          @echo off
+          taskkill /F /IM python.exe 2>nul
+          echo Streamlit processes stopped
+          pause
+          EOF
+
+      - name: Generate Readme
+        shell: bash
+        run: |
+          cat <<EOF > dist_folder/README.md
+          # Welcome to the ${{ env.APP_NAME }} application!
+          
+          ## To run the app:
+          1. Open the installation folder
+          2. Double-click **${{ env.APP_NAME }}.bat**
+          3. Your default browser will automatically open to http://localhost:[PORT]
+          4. The console window will show the exact URL and port being used
+          
+          ## Network Access:
+          - **Local access**: http://localhost:[PORT] (automatically opens in browser)
+          - **Network access**: http://[YOUR-COMPUTER-NAME]:[PORT]
+          - Port range: 8501-8600 (automatically finds available port)
+          
+          ## If You See an Old Version:
+          If the app shows an older version or wrong content:
+          1. Close all browser tabs with the app
+          2. Double-click **kill_streamlit.bat** to stop all instances
+          3. Clear your browser cache (Ctrl+Shift+Delete)
+          4. Start the app again with **${{ env.APP_NAME }}.bat**
+          
+          ## If Browser Doesn't Open Automatically:
+          1. Check the console window for the URL (e.g., http://localhost:8501)
+          2. Manually copy and paste the URL into your browser
+          3. Make sure your default browser is set correctly in Windows
+          
+          ## Firewall Configuration (For Network Access):
+          If you can't access the app from other devices on your network:
+          1. Right-click **configure_firewall.bat**
+          2. Select "Run as administrator"
+          3. This will allow incoming connections on ports 8501-8600
+          
+          ## Troubleshooting:
+          - **Port conflicts**: The app automatically finds free ports (8501-8600)
+          - **Browser not opening**: Check console for URL and open manually
+          - **Old version showing**: Run kill_streamlit.bat and clear browser cache
+          - **Can't access from network**: Run configure_firewall.bat as Administrator
+          - **Multiple instances**: Each instance will use a different port
+          
+          ## Utility Scripts:
+          - **${{ env.APP_NAME }}.bat** - Start the application
+          - **kill_streamlit.bat** - Stop all Streamlit processes
+          - **configure_firewall.bat** - Configure Windows Firewall (requires Admin)
+          
+          Thank you!
+          EOF
 
       - name: Install WiX Toolset
         run: |
@@ -119,29 +252,32 @@ jobs:
           unzip wix311-binaries.zip -d wix
           rm wix311-binaries.zip
 
-      - name: Heat Build
-        run: ./wix/heat.exe dir streamlit_exe -gg -sfrag -sreg -srd -template component -cg StreamlitExeFiles -dr AppSubFolder -out streamlit_exe_files.wxs
+      - name: Heat - Generate .wxs from folder
+        run: |
+          ./wix/heat.exe dir dist_folder -gg -sfrag -sreg -srd -template component -cg StreamlitExeFiles -dr AppSubFolder -out streamlit_exe_files.wxs
 
-      - name: Generate VBScript
+      - name: Create VBScript Success Message
         shell: bash
-        run: echo 'MsgBox "The ${{ env.APP_NAME }} application was installed successfully.", vbInformation, "Installation Complete"' > ShowSuccessMessage.vbs
+        run: |
+          cat <<EOF > ShowSuccessMessage.vbs
+          MsgBox "The ${{ env.APP_NAME }} application was installed successfully." & vbCrLf & vbCrLf & "For network access, run configure_firewall.bat as Administrator.", vbInformation, "Installation Complete"
+          EOF
 
       - name: Prepare SourceDir
         run: |
           mkdir SourceDir
-          mv streamlit_exe/* SourceDir
+          mv dist_folder/* SourceDir
           cp ShowSuccessMessage.vbs SourceDir
-          echo "License Agreement" > SourceDir/app_license.rtf
-          cp ms2_scanicon.ico SourceDir/app_icon.ico
+          echo "Sample License Text" > SourceDir/app_license.rtf
 
-      - name: Generate WiX XML
+      - name: Generate streamlit_exe.wxs
         shell: bash
         run: |
           cat <<EOF > streamlit_exe.wxs
           <?xml version="1.0"?>
           <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-            <Product Id="*" Name="${{ env.APP_NAME }}" Language="1033" Version="1.0.0.0" Manufacturer="Functional Metabolomics Lab" UpgradeCode="b3e2c7a1-5e2a-4f6c-9e2d-1a2b3c4d5e6f">
-              <Package InstallerVersion="300" Compressed="yes" InstallScope="perMachine" Platform="x64"/>
+            <Product Id="*" Name="${{ env.APP_NAME }}" Language="1033" Version="1.0.0" Manufacturer="Your Org" UpgradeCode="b3e2c7a1-5e2a-4f6c-9e2d-1a2b3c4d5e6f">
+              <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"/>
               <Media Id="1" Cabinet="media.cab" EmbedCab="yes"/>
               <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER"/>
               <Directory Id="TARGETDIR" Name="SourceDir">
@@ -155,17 +291,12 @@ jobs:
               <Feature Id="MainFeature" Title="Main App" Level="1">
                 <ComponentGroupRef Id="StreamlitExeFiles"/>
                 <ComponentRef Id="DesktopShortcutComponent"/>
-                <ComponentRef Id="InstallDirShortcutComponent"/>
               </Feature>
               <Component Id="DesktopShortcutComponent" Guid="B1110000-0000-0000-0000-000000000001" Directory="DesktopFolder">
-                <Shortcut Id="DesktopAppShortcut" Name="${{ env.APP_NAME }}" Target="[AppSubFolder]${{ env.APP_NAME }}.bat" WorkingDirectory="AppSubFolder" Icon="AppIcon"/>
-                <RegistryValue Root="HKCU" Key="Software\\FunctionalMetabolomicsLab\\${{ env.APP_NAME }}" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes"/>
+                <Shortcut Id="AppShortcut" Name="${{ env.APP_NAME }}" Description="Launch" Target="[AppSubFolder]${{ env.APP_NAME }}.bat" WorkingDirectory="AppSubFolder" Icon="AppIcon"/>
+                <RegistryValue Root="HKCU" Key="Software\\${{ env.APP_NAME }}" Name="Installed" Type="integer" Value="1" KeyPath="yes"/>
               </Component>
-              <Component Id="InstallDirShortcutComponent" Guid="664a0076-013e-4a60-9284-924ee1ec68be" Directory="AppSubFolder">
-                <Shortcut Id="InstallDirShortcut" Name="${{ env.APP_NAME }}" Target="[AppSubFolder]${{ env.APP_NAME }}.bat" WorkingDirectory="AppSubFolder" Icon="AppIcon"/>
-                <RegistryValue Root="HKCU" Key="Software\\FunctionalMetabolomicsLab\\${{ env.APP_NAME }}" Name="InstallFolderShortcut" Type="integer" Value="1" KeyPath="yes"/>
-              </Component>
-              <Icon Id="AppIcon" SourceFile="SourceDir/app_icon.ico" />
+              <Icon Id="AppIcon" SourceFile="SourceDir/ms2_scanicon.ico" />
               <Binary Id="VBSMessage" SourceFile="SourceDir/ShowSuccessMessage.vbs"/>
               <CustomAction Id="ShowSuccess" BinaryKey="VBSMessage" VBScriptCall="" Execute="immediate" Return="check"/>
               <InstallExecuteSequence>
@@ -180,18 +311,21 @@ jobs:
           </Wix>
           EOF
 
-      - name: Candle
+      - name: Candle WiX Installer
         run: |
           ./wix/candle.exe streamlit_exe.wxs -out streamlit_exe.wixobj
           ./wix/candle.exe streamlit_exe_files.wxs -out streamlit_exe_files.wixobj
 
-      - name: Light
-        run: ./wix/light.exe streamlit_exe.wixobj streamlit_exe_files.wixobj -ext WixUIExtension -o "${{ env.APP_NAME }}.msi" -cultures:en-us
+      - name: Light WiX Installer
+        run: |
+          ./wix/light.exe streamlit_exe.wixobj streamlit_exe_files.wixobj -ext WixUIExtension -o "${{ env.APP_NAME }}.msi" -cultures:en-us
 
-      - name: Upload Release Asset
+      - name: Upload artifacts to GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ env.APP_NAME }}.msi
+          files: |
+            dist/ms2_App.exe
+            ${{ env.APP_NAME }}.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
