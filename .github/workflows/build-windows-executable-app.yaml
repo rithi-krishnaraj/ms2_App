@@ -71,8 +71,8 @@ jobs:
           # Use localhost for local access
           address = "localhost"
           
-          # Allow browser to open automatically
-          headless = false
+          # HEADLESS MODE: Prevents the backend from trying to pop a window (the BAT file handles this)
+          headless = true
           
           # Enable CORS for all origins
           enableCORS = false
@@ -91,9 +91,21 @@ jobs:
           @echo off
           setlocal enabledelayedexpansion
           
-          taskkill /F /IM python.exe /FI "WINDOWTITLE eq *streamlit*" 2>nul >nul
-          timeout /t 2 /nobreak >nul
+          :: ---------------------------------------------------------------------------
+          :: SETUP: Prevent writing to Program Files to avoid crashing on standard user accounts
+          :: ---------------------------------------------------------------------------
+          set "STREAMLIT_CONFIG_DIR=%TEMP%\.streamlit"
+          set "MPLCONFIGDIR=%TEMP%\matplotlib"
           
+          :: ---------------------------------------------------------------------------
+          :: CLEANUP: Kill old instances of this specific app
+          :: ---------------------------------------------------------------------------
+          taskkill /F /IM python.exe /FI "WINDOWTITLE eq StreamlitBackend*" 2>nul >nul
+          timeout /t 1 /nobreak >nul
+          
+          :: ---------------------------------------------------------------------------
+          :: PORT DISCOVERY: Find a free port between 8501 and 8600
+          :: ---------------------------------------------------------------------------
           set PORT=8501
           set MAX_PORT=8600
           
@@ -102,17 +114,49 @@ jobs:
           if !errorlevel! equ 0 (
               set /a PORT+=1
               if !PORT! leq %MAX_PORT% goto FIND_PORT
-              echo ERROR: No available ports found
+              echo ERROR: No available ports found between 8501 and 8600.
               pause
               exit /b 1
           )
           
-          start /B .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port !PORT! --server.address localhost --browser.serverAddress localhost --browser.gatherUsageStats false
+          echo Starting ${{ env.APP_NAME }} on port !PORT!...
           
-          timeout /t 3 /nobreak >nul
+          :: ---------------------------------------------------------------------------
+          :: EXECUTION: Start Streamlit in Background (Hidden)
+          :: ---------------------------------------------------------------------------
+          start "StreamlitBackend" /B .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port !PORT! --server.address localhost --server.headless true --browser.gatherUsageStats false
+          
+          :: ---------------------------------------------------------------------------
+          :: WAIT LOOP: Wait for the server to actually be ready
+          :: ---------------------------------------------------------------------------
+          echo Waiting for application to initialize...
+          set /a RETRY_COUNT=0
+          
+          :CHECK_URL
+          timeout /t 1 /nobreak >nul
+          netstat -an | findstr ":!PORT! " | findstr "LISTENING" >nul
+          if !errorlevel! neq 0 (
+              set /a RETRY_COUNT+=1
+              if !RETRY_COUNT! leq 15 goto CHECK_URL
+              echo.
+              echo Warning: Server is taking a long time to start. Opening browser anyway...
+          )
+          
+          :: ---------------------------------------------------------------------------
+          :: LAUNCH: Open the default web browser
+          :: ---------------------------------------------------------------------------
           start "" "http://localhost:!PORT!"
           
-          pause
+          echo.
+          echo -------------------------------------------------------
+          echo  ${{ env.APP_NAME }} is running!
+          echo  Local URL: http://localhost:!PORT!
+          echo -------------------------------------------------------
+          echo.
+          echo  Keep this window open to keep the application running.
+          echo  Close this window to stop the application.
+          
+          pause >nul
           EOF
 
       - name: Convert PNG icon to ICO
@@ -284,3 +328,6 @@ jobs:
             ${{ env.APP_NAME }}.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  
