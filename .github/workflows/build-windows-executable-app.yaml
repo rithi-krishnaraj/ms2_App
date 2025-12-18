@@ -91,9 +91,8 @@ jobs:
           setlocal enabledelayedexpansion
           
           REM Kill any existing Streamlit processes to avoid conflicts
-          echo Checking for existing Streamlit processes...
-          taskkill /F /IM python.exe /FI "WINDOWTITLE eq *streamlit*" 2>nul
-          timeout /t 2 /nobreak >nul
+          taskkill /F /IM python.exe /FI "WINDOWTITLE eq *streamlit*" 2>nul >nul
+          timeout /t 1 /nobreak >nul
           
           REM Find an available port starting from 8501
           set PORT=8501
@@ -102,7 +101,6 @@ jobs:
           :FIND_PORT
           netstat -an | findstr ":!PORT! " | findstr "LISTENING" >nul
           if !errorlevel! equ 0 (
-              echo Port !PORT! is in use, trying next port...
               set /a PORT+=1
               if !PORT! leq %MAX_PORT% goto FIND_PORT
               echo ERROR: No available ports found between 8501 and %MAX_PORT%
@@ -110,28 +108,8 @@ jobs:
               exit /b 1
           )
           
-          echo.
-          echo ========================================
-          echo Starting ${{ env.APP_NAME }}
-          echo ========================================
-          echo Port: !PORT!
-          echo.
-          echo Access the app at:
-          echo   Local:   http://localhost:!PORT!
-          echo   Network: http://%COMPUTERNAME%:!PORT!
-          echo.
-          echo Press Ctrl+C to stop the app
-          echo ========================================
-          echo.
-          
-          REM Start Streamlit with explicit port argument (command line overrides config)
-          .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py ^
-            --server.port=!PORT! ^
-            --server.address=0.0.0.0 ^
-            --server.headless=true ^
-            --server.enableCORS=false ^
-            --server.enableXsrfProtection=false ^
-            --browser.gatherUsageStats=false
+          REM Start Streamlit - it will show its own URL with the correct port
+          .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port !PORT! --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false --browser.gatherUsageStats false
           
           pause
           EOF
