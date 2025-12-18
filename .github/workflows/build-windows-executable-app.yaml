@@ -68,19 +68,20 @@ jobs:
         run: |
           cat <<EOF > .streamlit/config.toml
           [server]
-          # Allow access from any network interface (0.0.0.0 = all interfaces)
-          address = "0.0.0.0"
+          # Use localhost for local access
+          address = "localhost"
           
-          # Don't open browser automatically
-          headless = true
+          # Allow browser to open automatically
+          headless = false
           
           # Enable CORS for all origins
           enableCORS = false
           enableXsrfProtection = false
           
           [browser]
-          # Don't try to open browser
+          # Allow browser to open
           gatherUsageStats = false
+          serverAddress = "localhost"
           EOF
 
       - name: Create Advanced Launcher BAT File
@@ -90,11 +91,9 @@ jobs:
           @echo off
           setlocal enabledelayedexpansion
           
-          REM Kill any existing Streamlit processes to avoid conflicts
           taskkill /F /IM python.exe /FI "WINDOWTITLE eq *streamlit*" 2>nul >nul
-          timeout /t 1 /nobreak >nul
+          timeout /t 2 /nobreak >nul
           
-          REM Find an available port starting from 8501
           set PORT=8501
           set MAX_PORT=8600
           
@@ -103,13 +102,15 @@ jobs:
           if !errorlevel! equ 0 (
               set /a PORT+=1
               if !PORT! leq %MAX_PORT% goto FIND_PORT
-              echo ERROR: No available ports found between 8501 and %MAX_PORT%
+              echo ERROR: No available ports found
               pause
               exit /b 1
           )
           
-          REM Start Streamlit - it will show its own URL with the correct port
-          .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port !PORT! --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false --browser.gatherUsageStats false
+          start /B .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port !PORT! --server.address localhost --browser.serverAddress localhost --browser.gatherUsageStats false
+          
+          timeout /t 3 /nobreak >nul
+          start "" "http://localhost:!PORT!"
           
           pause
           EOF
@@ -135,31 +136,19 @@ jobs:
         run: |
           cat <<'EOF' > dist_folder/configure_firewall.bat
           @echo off
-          echo Configuring Windows Firewall for ${{ env.APP_NAME }}...
-          
-          REM Add firewall rule for port range 8501-8600
           netsh advfirewall firewall add rule name="${{ env.APP_NAME }}" dir=in action=allow protocol=TCP localport=8501-8600 enable=yes
-          
           if %errorlevel% equ 0 (
-              echo Firewall rule added successfully!
+              echo Firewall configured successfully
           ) else (
-              echo Failed to add firewall rule. Please run as Administrator.
+              echo Failed - run as Administrator
           )
-          
           pause
           EOF
           
           cat <<'EOF' > dist_folder/kill_streamlit.bat
           @echo off
-          echo Stopping all Streamlit processes...
-          
-          REM Kill all Python processes running Streamlit
-          for /f "tokens=2" %%a in ('tasklist /FI "IMAGENAME eq python.exe" /NH 2^>nul') do (
-              taskkill /F /PID %%a 2>nul
-          )
-          
-          echo All Streamlit processes stopped.
-          echo You can now start the app fresh.
+          taskkill /F /IM python.exe 2>nul
+          echo Streamlit processes stopped
           pause
           EOF
 
@@ -172,13 +161,13 @@ jobs:
           ## To run the app:
           1. Open the installation folder
           2. Double-click **${{ env.APP_NAME }}.bat**
-          3. The app will automatically find an available port (8501-8600)
-          4. Access the app via the URL shown in the console window
+          3. Your default browser will automatically open to http://localhost:[PORT]
+          4. The console window will show the exact URL and port being used
           
           ## Network Access:
-          - **Local access**: http://localhost:[PORT]
+          - **Local access**: http://localhost:[PORT] (automatically opens in browser)
           - **Network access**: http://[YOUR-COMPUTER-NAME]:[PORT]
-          - The app is configured to accept connections from any network interface
+          - Port range: 8501-8600 (automatically finds available port)
           
           ## If You See an Old Version:
           If the app shows an older version or wrong content:
@@ -187,7 +176,12 @@ jobs:
           3. Clear your browser cache (Ctrl+Shift+Delete)
           4. Start the app again with **${{ env.APP_NAME }}.bat**
           
-          ## Firewall Configuration:
+          ## If Browser Doesn't Open Automatically:
+          1. Check the console window for the URL (e.g., http://localhost:8501)
+          2. Manually copy and paste the URL into your browser
+          3. Make sure your default browser is set correctly in Windows
+          
+          ## Firewall Configuration (For Network Access):
           If you can't access the app from other devices on your network:
           1. Right-click **configure_firewall.bat**
           2. Select "Run as administrator"
@@ -195,6 +189,7 @@ jobs:
           
           ## Troubleshooting:
           - **Port conflicts**: The app automatically finds free ports (8501-8600)
+          - **Browser not opening**: Check console for URL and open manually
           - **Old version showing**: Run kill_streamlit.bat and clear browser cache
           - **Can't access from network**: Run configure_firewall.bat as Administrator
           - **Multiple instances**: Each instance will use a different port
