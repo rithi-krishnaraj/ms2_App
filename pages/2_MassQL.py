@@ -5,6 +5,8 @@ from massql import msql_engine
 import os
 import easygui
 from pathlib import Path
+import requests
+import io
 
 # Page configuration
 st.set_page_config(
@@ -18,6 +20,32 @@ st.title("🔬 MassQL - Mass Spectrometry Data Search")
 # Sidebar for file selection
 st.sidebar.header("Data Source Configuration")
 st.sidebar.markdown("""(Minimize Browser Window to View System Dialogs)""")
+# GitHub ZIP URL input
+zip_url = st.sidebar.text_input(
+    "Sample ZIP URL",
+    value="https://github.com/rithi-krishnaraj/ms2_App/blob/main/mgf_mzmlSample.zip?raw=true",
+)
+
+# Prepare the ZIP bytes once user clicks
+zip_bytes = None
+if st.sidebar.button("Fetch Sample ZIP"):
+    try:
+        with st.spinner("Downloading ZIP from GitHub..."):
+            resp = requests.get(zip_url, timeout=60)
+            resp.raise_for_status()
+            zip_bytes = resp.content
+        st.sidebar.success("ZIP Found. You can now download it.")
+    except Exception as e:
+        st.sidebar.error(f"Failed to fetch ZIP: {e}")
+
+# Download button uses bytes or a BytesIO buffer
+if zip_bytes:
+    st.sidebar.download_button(
+        label="📥 Download Sample Data Files",
+        data=io.BytesIO(zip_bytes),  # or pass zip_bytes directly
+        file_name="sample_data.zip",
+        mime="application/zip"
+    )
 
 # Folder selection using easygui
 if st.sidebar.button("📂 Choose Folder"):

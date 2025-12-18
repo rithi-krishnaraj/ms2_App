@@ -50,17 +50,79 @@ jobs:
 
       - name: Enable site-packages
         run: |
-          sed -i 's/#import site/import site/' python-${{ env.PYTHON_VERSION }}/python311._pth
+          $pthFile = Get-ChildItem -Path "python-${{ env.PYTHON_VERSION }}" -Filter "*._pth" | Select-Object -First 1
+          (Get-Content $pthFile.FullName) -replace '#import site', 'import site' | Set-Content $pthFile.FullName
 
       - name: Install Required Packages
         run: |
-          .\python-3.11.0\python -m pip install Cython --no-warn-script-location
+          .\python-${{ env.PYTHON_VERSION }}\python -m pip install Cython --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install numpy --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install -r requirements-windows.txt --no-warn-script-location
 
-      - name: Create Launcher BAT File
+      - name: Create Streamlit Config Directory
         run: |
-          echo " start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py" > ${{ env.APP_NAME }}.bat
+          mkdir .streamlit
+
+      - name: Create Streamlit Config for Network Access
+        shell: bash
+        run: |
+          cat <<EOF > .streamlit/config.toml
+          [server]
+          # Allow access from any network interface (0.0.0.0 = all interfaces)
+          address = "0.0.0.0"
+          
+          # Try to find available port automatically if 8501 is taken
+          port = 8501
+          
+          # Don't open browser automatically
+          headless = true
+          
+          # Enable CORS for all origins
+          enableCORS = false
+          enableXsrfProtection = false
+          
+          [browser]
+          # Don't try to open browser
+          gatherUsageStats = false
+          serverAddress = "localhost"
+          serverPort = 8501
+          EOF
+
+      - name: Create Advanced Launcher BAT File
+        shell: bash
+        run: |
+          cat <<'EOF' > ${{ env.APP_NAME }}.bat
+          @echo off
+          setlocal enabledelayedexpansion
+          
+          REM Find an available port starting from 8501
+          set PORT=8501
+          set MAX_PORT=8600
+          
+          :FIND_PORT
+          netstat -an | findstr ":%PORT% " >nul
+          if !errorlevel! equ 0 (
+              set /a PORT+=1
+              if !PORT! leq %MAX_PORT% goto FIND_PORT
+              echo ERROR: No available ports found between 8501 and %MAX_PORT%
+              pause
+              exit /b 1
+          )
+          
+          echo Starting ${{ env.APP_NAME }} on port !PORT!...
+          echo.
+          echo Access the app at:
+          echo   Local:   http://localhost:!PORT!
+          echo   Network: http://%COMPUTERNAME%:!PORT!
+          echo.
+          echo To stop the app, close this window or press Ctrl+C
+          echo.
+          
+          REM Start Streamlit with found port and network access
+          .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port !PORT! --server.address 0.0.0.0 --server.headless true
+          
+          pause
+          EOF
 
       - name: Convert PNG icon to ICO
         run: |
@@ -70,6 +132,7 @@ jobs:
         run: |
           mkdir dist_folder
           mv python-${{ env.PYTHON_VERSION }} dist_folder/
+          mv .streamlit dist_folder/
           cp ms2_main.py dist_folder/
           cp requirements-windows.txt dist_folder/
           cp README.md dist_folder/
@@ -77,14 +140,53 @@ jobs:
           cp "${{ env.APP_NAME }}.bat" dist_folder/
           cp ms2_scanicon.ico dist_folder/
 
+      - name: Create Firewall Setup Script
+        shell: bash
+        run: |
+          cat <<'EOF' > dist_folder/configure_firewall.bat
+          @echo off
+          echo Configuring Windows Firewall for ${{ env.APP_NAME }}...
+          
+          REM Add firewall rule for port range 8501-8600
+          netsh advfirewall firewall add rule name="${{ env.APP_NAME }}" dir=in action=allow protocol=TCP localport=8501-8600 enable=yes
+          
+          if %errorlevel% equ 0 (
+              echo Firewall rule added successfully!
+          ) else (
+              echo Failed to add firewall rule. Please run as Administrator.
+          )
+          
+          pause
+          EOF
+
       - name: Generate Readme
         shell: bash
         run: |
-          cat <<EOF > dist_folder/ReadME.md
-          Welcome to the ${{ env.APP_NAME }} application!
-          To run the app:
+          cat <<EOF > dist_folder/README.md
+          # Welcome to the ${{ env.APP_NAME }} application!
+          
+          ## To run the app:
           1. Open the installation folder
-          2. Double-click ${{ env.APP_NAME }}.bat
+          2. Double-click **${{ env.APP_NAME }}.bat**
+          3. The app will automatically find an available port (8501-8600)
+          4. Access the app via the URL shown in the console window
+          
+          ## Network Access:
+          - **Local access**: http://localhost:[PORT]
+          - **Network access**: http://[YOUR-COMPUTER-NAME]:[PORT]
+          - The app is configured to accept connections from any network interface
+          
+          ## Firewall Configuration:
+          If you can't access the app from other devices on your network:
+          1. Right-click **configure_firewall.bat**
+          2. Select "Run as administrator"
+          3. This will allow incoming connections on ports 8501-8600
+          
+          ## Troubleshooting:
+          - If port 8501 is busy, the app will automatically try ports up to 8600
+          - Make sure your network firewall allows connections on the port shown
+          - For corporate networks, contact your IT department about firewall rules
+          
           Thank you!
           EOF
 
@@ -102,7 +204,7 @@ jobs:
         shell: bash
         run: |
           cat <<EOF > ShowSuccessMessage.vbs
-          MsgBox "The ${{ env.APP_NAME }} application was installed successfully.", vbInformation, "Installation Complete"
+          MsgBox "The ${{ env.APP_NAME }} application was installed successfully." & vbCrLf & vbCrLf & "For network access, run configure_firewall.bat as Administrator.", vbInformation, "Installation Complete"
           EOF
 
       - name: Prepare SourceDir
