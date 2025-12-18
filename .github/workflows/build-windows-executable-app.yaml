@@ -71,9 +71,6 @@ jobs:
           # Allow access from any network interface (0.0.0.0 = all interfaces)
           address = "0.0.0.0"
           
-          # Try to find available port automatically if 8501 is taken
-          port = 8501
-          
           # Don't open browser automatically
           headless = true
           
@@ -84,8 +81,6 @@ jobs:
           [browser]
           # Don't try to open browser
           gatherUsageStats = false
-          serverAddress = "localhost"
-          serverPort = 8501
           EOF
 
       - name: Create Advanced Launcher BAT File
@@ -95,13 +90,19 @@ jobs:
           @echo off
           setlocal enabledelayedexpansion
           
+          REM Kill any existing Streamlit processes to avoid conflicts
+          echo Checking for existing Streamlit processes...
+          taskkill /F /IM python.exe /FI "WINDOWTITLE eq *streamlit*" 2>nul
+          timeout /t 2 /nobreak >nul
+          
           REM Find an available port starting from 8501
           set PORT=8501
           set MAX_PORT=8600
           
           :FIND_PORT
-          netstat -an | findstr ":%PORT% " >nul
+          netstat -an | findstr ":!PORT! " | findstr "LISTENING" >nul
           if !errorlevel! equ 0 (
+              echo Port !PORT! is in use, trying next port...
               set /a PORT+=1
               if !PORT! leq %MAX_PORT% goto FIND_PORT
               echo ERROR: No available ports found between 8501 and %MAX_PORT%
@@ -109,17 +110,28 @@ jobs:
               exit /b 1
           )
           
-          echo Starting ${{ env.APP_NAME }} on port !PORT!...
+          echo.
+          echo ========================================
+          echo Starting ${{ env.APP_NAME }}
+          echo ========================================
+          echo Port: !PORT!
           echo.
           echo Access the app at:
           echo   Local:   http://localhost:!PORT!
           echo   Network: http://%COMPUTERNAME%:!PORT!
           echo.
-          echo To stop the app, close this window or press Ctrl+C
+          echo Press Ctrl+C to stop the app
+          echo ========================================
           echo.
           
-          REM Start Streamlit with found port and network access
-          .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port !PORT! --server.address 0.0.0.0 --server.headless true
+          REM Start Streamlit with explicit port argument (command line overrides config)
+          .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py ^
+            --server.port=!PORT! ^
+            --server.address=0.0.0.0 ^
+            --server.headless=true ^
+            --server.enableCORS=false ^
+            --server.enableXsrfProtection=false ^
+            --browser.gatherUsageStats=false
           
           pause
           EOF
@@ -158,6 +170,20 @@ jobs:
           
           pause
           EOF
+          
+          cat <<'EOF' > dist_folder/kill_streamlit.bat
+          @echo off
+          echo Stopping all Streamlit processes...
+          
+          REM Kill all Python processes running Streamlit
+          for /f "tokens=2" %%a in ('tasklist /FI "IMAGENAME eq python.exe" /NH 2^>nul') do (
+              taskkill /F /PID %%a 2>nul
+          )
+          
+          echo All Streamlit processes stopped.
+          echo You can now start the app fresh.
+          pause
+          EOF
 
       - name: Generate Readme
         shell: bash
@@ -176,6 +202,13 @@ jobs:
           - **Network access**: http://[YOUR-COMPUTER-NAME]:[PORT]
           - The app is configured to accept connections from any network interface
           
+          ## If You See an Old Version:
+          If the app shows an older version or wrong content:
+          1. Close all browser tabs with the app
+          2. Double-click **kill_streamlit.bat** to stop all instances
+          3. Clear your browser cache (Ctrl+Shift+Delete)
+          4. Start the app again with **${{ env.APP_NAME }}.bat**
+          
           ## Firewall Configuration:
           If you can't access the app from other devices on your network:
           1. Right-click **configure_firewall.bat**
@@ -183,9 +216,15 @@ jobs:
           3. This will allow incoming connections on ports 8501-8600
           
           ## Troubleshooting:
-          - If port 8501 is busy, the app will automatically try ports up to 8600
-          - Make sure your network firewall allows connections on the port shown
-          - For corporate networks, contact your IT department about firewall rules
+          - **Port conflicts**: The app automatically finds free ports (8501-8600)
+          - **Old version showing**: Run kill_streamlit.bat and clear browser cache
+          - **Can't access from network**: Run configure_firewall.bat as Administrator
+          - **Multiple instances**: Each instance will use a different port
+          
+          ## Utility Scripts:
+          - **${{ env.APP_NAME }}.bat** - Start the application
+          - **kill_streamlit.bat** - Stop all Streamlit processes
+          - **configure_firewall.bat** - Configure Windows Firewall (requires Admin)
           
           Thank you!
           EOF
