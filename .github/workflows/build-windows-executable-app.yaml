@@ -60,7 +60,9 @@ jobs:
 
       - name: Create Launcher BAT File
         run: |
-          echo " start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port 0 --server.address 0.0.0.0" > ${{ env.APP_NAME }}.bat
+          echo "@echo off" > ${{ env.APP_NAME }}.bat
+          echo "cd /d %%~dp0" >> ${{ env.APP_NAME }}.bat
+          echo "start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py" >> ${{ env.APP_NAME }}.bat
 
       - name: Convert PNG icon to ICO
         run: |
@@ -76,11 +78,7 @@ jobs:
         run: |
           cat <<EOF > dist_folder/.streamlit/config.toml
           [server]
-          headless = true
-          enableCORS = false
-          enableXsrfProtection = false
-          port = 0
-          address = "0.0.0.0"
+          headless = false
           
           [browser]
           serverAddress = "localhost"
@@ -196,3 +194,5 @@ jobs:
             ${{ env.APP_NAME }}.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          
