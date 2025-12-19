@@ -11,3 +11,4 @@ lxml
 numba==0.59.1
 llvmlite==0.42.0
 pyinstaller==6.6.0
+easygui==0.98.0
