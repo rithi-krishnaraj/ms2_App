@@ -57,6 +57,8 @@ jobs:
           .\python-3.9.0\python -m pip install Cython --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install numpy --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install -r requirements-windows.txt --no-warn-script-location
+          .\python-${{ env.PYTHON_VERSION }}\python -m pip install massql --no-warn-script-location
+          .\python-${{ env.PYTHON_VERSION }}\python -m pip install xlsxwriter --no-warn-script-location
 
       - name: Create Launcher BAT File
         run: |
