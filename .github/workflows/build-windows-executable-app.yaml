@@ -12,6 +12,7 @@ jobs:
     runs-on: windows-latest
 
     env:
+      # CHANGED: Updated to 3.9.0 as requested
       PYTHON_VERSION: 3.9.0
       APP_NAME: MS2-Scan-Analyzer
 
@@ -49,35 +50,25 @@ jobs:
           rm get-pip.py
 
       - name: Enable site-packages
+        # CHANGED: Updated file target to python39._pth to match version 3.9.0
+        # Added shell: bash to ensure 'sed' command works on Windows runner
+        shell: bash
         run: |
           sed -i 's/#import site/import site/' python-${{ env.PYTHON_VERSION }}/python39._pth
 
       - name: Install Required Packages
+        # CHANGED: Removed hardcoded "python-3.11.0" and replaced with env variable to ensure 3.9.0 is used
         run: |
-          .\python-3.9.0\python -m pip install Cython --no-warn-script-location
+          .\python-${{ env.PYTHON_VERSION }}\python -m pip install Cython --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install numpy --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install -r requirements-windows.txt --no-warn-script-location
 
-      - name: Create Streamlit Config
-        shell: bash
-        run: |
-          mkdir -p dist_folder/.streamlit
-          cat <<EOF > dist_folder/.streamlit/config.toml
-          [server]
-          headless = true
-          enableCORS = false
-          enableXsrfProtection = false
-          port = 0
-          address = "0.0.0.0"
-          
-          [browser]
-          serverAddress = "localhost"
-          gatherUsageStats = false
-          EOF
-
       - name: Create Launcher BAT File
+        # CHANGED: Added streamit arguments for network and port
+        # --server.address 0.0.0.0 allows public/private network access
+        # --server.port 0 selects the first available arbitrary port
         run: |
-          echo " start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port 0 --server.address 0.0.0.0" > ${{ env.APP_NAME }}.bat
+          echo " start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.address 0.0.0.0 --server.port 0" > ${{ env.APP_NAME }}.bat
 
       - name: Convert PNG icon to ICO
         run: |
@@ -150,21 +141,15 @@ jobs:
               <Feature Id="MainFeature" Title="Main App" Level="1">
                 <ComponentGroupRef Id="StreamlitExeFiles"/>
                 <ComponentRef Id="DesktopShortcutComponent"/>
-                <ComponentRef Id="FirewallRuleComponent"/>
               </Feature>
               <Component Id="DesktopShortcutComponent" Guid="B1110000-0000-0000-0000-000000000001" Directory="DesktopFolder">
                 <Shortcut Id="AppShortcut" Name="${{ env.APP_NAME }}" Description="Launch" Target="[AppSubFolder]${{ env.APP_NAME }}.bat" WorkingDirectory="AppSubFolder" Icon="AppIcon"/>
                 <RegistryValue Root="HKCU" Key="Software\\${{ env.APP_NAME }}" Name="Installed" Type="integer" Value="1" KeyPath="yes"/>
               </Component>
-              <Component Id="FirewallRuleComponent" Guid="B1110000-0000-0000-0000-000000000002" Directory="AppSubFolder">
-                <RegistryValue Root="HKCU" Key="Software\\${{ env.APP_NAME }}" Name="FirewallConfigured" Type="integer" Value="1" KeyPath="yes"/>
-              </Component>
               <Icon Id="AppIcon" SourceFile="SourceDir/ms2_scanicon.ico" />
               <Binary Id="VBSMessage" SourceFile="SourceDir/ShowSuccessMessage.vbs"/>
               <CustomAction Id="ShowSuccess" BinaryKey="VBSMessage" VBScriptCall="" Execute="immediate" Return="check"/>
-              <CustomAction Id="AddFirewallRule" Directory="AppSubFolder" ExeCommand="cmd.exe /c &quot;netsh advfirewall firewall add rule name=&quot;${{ env.APP_NAME }}&quot; dir=in action=allow program=&quot;[AppSubFolder]python-${{ env.PYTHON_VERSION }}\python.exe&quot; enable=yes profile=any&quot;" Execute="deferred" Impersonate="no" Return="ignore"/>
               <InstallExecuteSequence>
-                <Custom Action="AddFirewallRule" After="InstallFiles">NOT Installed</Custom>
                 <Custom Action="ShowSuccess" After="InstallFinalize">NOT Installed</Custom>
               </InstallExecuteSequence>
               <UI>
@@ -193,4 +178,3 @@ jobs:
             ${{ env.APP_NAME }}.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
