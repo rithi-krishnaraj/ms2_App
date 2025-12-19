@@ -32,7 +32,7 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller ms2_main.py --onefile --noconsole --name ms2_App
+          pyinstaller ms2_main.py --onefile --noconsole --name ms2_App --copy-metadata streamlit --collect-all streamlit
           echo "Executable built at dist/ms2_App.exe"
 
       - name: Setup Python Embeddable Version
@@ -195,4 +195,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          
