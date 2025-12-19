@@ -28,11 +28,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Install PyInstaller
+        run: |
           pip install pyinstaller
 
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller ms2_main.py --onefile --noconsole --name ms2_App --copy-metadata streamlit --collect-all streamlit --add-data "pages;pages"
+          pyinstaller ms2_main.py --onefile --noconsole --name ms2_App --collect-all streamlit --add-data "pages;pages"
           echo "Executable built at dist/ms2_App.exe"
 
       - name: Setup Python Embeddable Version
