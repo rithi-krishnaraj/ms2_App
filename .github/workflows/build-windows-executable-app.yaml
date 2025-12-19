@@ -50,84 +50,34 @@ jobs:
 
       - name: Enable site-packages
         run: |
-          $pthFile = Get-ChildItem -Path "python-${{ env.PYTHON_VERSION }}" -Filter "*._pth" | Select-Object -First 1
-          (Get-Content $pthFile.FullName) -replace '#import site', 'import site' | Set-Content $pthFile.FullName
+          sed -i 's/#import site/import site/' python-${{ env.PYTHON_VERSION }}/python39._pth
 
       - name: Install Required Packages
         run: |
-          .\python-${{ env.PYTHON_VERSION }}\python -m pip install Cython --no-warn-script-location
+          .\python-3.9.0\python -m pip install Cython --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install numpy --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install -r requirements-windows.txt --no-warn-script-location
 
-      - name: Create Advanced Launcher BAT File
+      - name: Create Streamlit Config
         shell: bash
         run: |
-          cat <<'EOF' > ${{ env.APP_NAME }}.bat
-          @echo off
-          setlocal enabledelayedexpansion
-          
-          set "APP_DIR=%~dp0"
-          cd /d "%APP_DIR%"
-          
-          set "STREAMLIT_CONFIG_DIR=%APP_DIR%.streamlit"
-          set "MPLCONFIGDIR=%TEMP%\matplotlib"
-          
-          if not exist "%STREAMLIT_CONFIG_DIR%" mkdir "%STREAMLIT_CONFIG_DIR%"
-          
-          taskkill /F /IM python.exe /FI "WINDOWTITLE eq StreamlitBackend*" 2>nul >nul
-          timeout /t 2 /nobreak >nul
-          
-          set PORT=8501
-          set MAX_PORT=8600
-          
-          :FIND_PORT
-          netstat -an | findstr ":!PORT! " | findstr "LISTENING" >nul
-          if !errorlevel! equ 0 (
-              set /a PORT+=1
-              if !PORT! leq %MAX_PORT% goto FIND_PORT
-              pause
-              exit /b 1
-          )
-          
-          start "StreamlitBackend" /B "%APP_DIR%python-${{ env.PYTHON_VERSION }}\python.exe" -m streamlit run "%APP_DIR%ms2_main.py" --server.port !PORT! --server.address localhost --server.headless true --browser.gatherUsageStats false --server.enableCORS false --server.enableXsrfProtection false
-          
-          set /a RETRY_COUNT=0
-          
-          :CHECK_URL
-          timeout /t 2 /nobreak >nul
-          netstat -an | findstr ":!PORT! " | findstr "LISTENING" >nul
-          if !errorlevel! neq 0 (
-              set /a RETRY_COUNT+=1
-              if !RETRY_COUNT! leq 20 goto CHECK_URL
-              pause
-              exit /b 1
-          )
-          
-          start "" "http://localhost:!PORT!"
-          
-          pause >nul
-          
-          taskkill /F /IM python.exe /FI "WINDOWTITLE eq StreamlitBackend*" 2>nul >nul
-          EOF
-
-      - name: Create Streamlit Config File
-        shell: bash
-        run: |
-          mkdir -p .streamlit
-          cat <<EOF > .streamlit/config.toml
+          mkdir -p dist_folder/.streamlit
+          cat <<EOF > dist_folder/.streamlit/config.toml
           [server]
-          address = "localhost"
           headless = true
           enableCORS = false
           enableXsrfProtection = false
+          port = 0
+          address = "0.0.0.0"
           
           [browser]
-          gatherUsageStats = false
           serverAddress = "localhost"
-          
-          [logger]
-          level = "info"
+          gatherUsageStats = false
           EOF
+
+      - name: Create Launcher BAT File
+        run: |
+          echo " start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run ms2_main.py --server.port 0 --server.address 0.0.0.0" > ${{ env.APP_NAME }}.bat
 
       - name: Convert PNG icon to ICO
         run: |
@@ -137,113 +87,21 @@ jobs:
         run: |
           mkdir dist_folder
           mv python-${{ env.PYTHON_VERSION }} dist_folder/
-          mv .streamlit dist_folder/
           cp ms2_main.py dist_folder/
-          cp 2_MassQL.py dist_folder/ 2>nul || echo "MassQL file not found, skipping"
           cp requirements-windows.txt dist_folder/
           cp README.md dist_folder/
-          cp LICENSE.rtf dist_folder/ 2>nul || echo "LICENSE.rtf not found"
+          cp LICENSE.rtf dist_folder/
           cp "${{ env.APP_NAME }}.bat" dist_folder/
           cp ms2_scanicon.ico dist_folder/
-
-      - name: Create Debug Launch Script
-        shell: bash
-        run: |
-          cat <<'EOF' > dist_folder/debug_launch.bat
-          @echo off
-          set "APP_DIR=%~dp0"
-          cd /d "%APP_DIR%"
-          
-          "%APP_DIR%python-${{ env.PYTHON_VERSION }}\python.exe" --version
-          if %errorlevel% neq 0 (
-              pause
-              exit /b 1
-          )
-          
-          "%APP_DIR%python-${{ env.PYTHON_VERSION }}\python.exe" -m streamlit --version
-          if %errorlevel% neq 0 (
-              pause
-              exit /b 1
-          )
-          
-          "%APP_DIR%python-${{ env.PYTHON_VERSION }}\python.exe" -m streamlit run "%APP_DIR%ms2_main.py" --server.port 8501
-          
-          pause
-          EOF
-
-      - name: Create Firewall Setup Script
-        shell: bash
-        run: |
-          cat <<'EOF' > dist_folder/configure_firewall.bat
-          @echo off
-          netsh advfirewall firewall add rule name="${{ env.APP_NAME }}" dir=in action=allow protocol=TCP localport=8501-8600 enable=yes
-          if %errorlevel% equ 0 (
-              pause
-          ) else (
-              pause
-          )
-          EOF
-          
-          cat <<'EOF' > dist_folder/kill_streamlit.bat
-          @echo off
-          taskkill /F /IM python.exe 2>nul
-          pause
-          EOF
 
       - name: Generate Readme
         shell: bash
         run: |
-          cat <<EOF > dist_folder/README.md
-          # Welcome to the ${{ env.APP_NAME }} application!
-          
-          ## To run the app:
+          cat <<EOF > dist_folder/ReadME.md
+          Welcome to the ${{ env.APP_NAME }} application!
+          To run the app:
           1. Open the installation folder
-          2. Double-click **${{ env.APP_NAME }}.bat**
-          3. Your default browser will automatically open to http://localhost:[PORT]
-          4. The console window will show the exact URL and port being used
-          
-          ## If the app won't start:
-          1. Double-click **debug_launch.bat** to see detailed error messages
-          2. This will help identify if there's a missing dependency or configuration issue
-          3. Keep the debug window open and check for error messages
-          
-          ## Network Access:
-          - **Local access**: http://localhost:[PORT] (automatically opens in browser)
-          - **Network access**: http://[YOUR-COMPUTER-NAME]:[PORT]
-          - Port range: 8501-8600 (automatically finds available port)
-          
-          ## If You See an Old Version:
-          If the app shows an older version or wrong content:
-          1. Close all browser tabs with the app
-          2. Double-click **kill_streamlit.bat** to stop all instances
-          3. Clear your browser cache (Ctrl+Shift+Delete)
-          4. Start the app again with **${{ env.APP_NAME }}.bat**
-          
-          ## If Browser Doesn't Open Automatically:
-          1. Check the console window for the URL (e.g., http://localhost:8501)
-          2. Manually copy and paste the URL into your browser
-          3. Make sure your default browser is set correctly in Windows
-          
-          ## Firewall Configuration (For Network Access):
-          If you can't access the app from other devices on your network:
-          1. Right-click **configure_firewall.bat**
-          2. Select "Run as administrator"
-          3. This will allow incoming connections on ports 8501-8600
-          
-          ## Troubleshooting:
-          - **App won't start**: Run **debug_launch.bat** to see error messages
-          - **Port conflicts**: The app automatically finds free ports (8501-8600)
-          - **Browser not opening**: Check console for URL and open manually
-          - **Old version showing**: Run kill_streamlit.bat and clear browser cache
-          - **Can't access from network**: Run configure_firewall.bat as Administrator
-          - **Multiple instances**: Each instance will use a different port
-          
-          ## Utility Scripts:
-          - **${{ env.APP_NAME }}.bat** - Start the application
-          - **debug_launch.bat** - Start with detailed error messages (troubleshooting)
-          - **kill_streamlit.bat** - Stop all Streamlit processes
-          - **configure_firewall.bat** - Configure Windows Firewall (requires Admin)
-          
+          2. Double-click ${{ env.APP_NAME }}.bat
           Thank you!
           EOF
 
@@ -261,7 +119,7 @@ jobs:
         shell: bash
         run: |
           cat <<EOF > ShowSuccessMessage.vbs
-          MsgBox "The ${{ env.APP_NAME }} application was installed successfully." & vbCrLf & vbCrLf & "For network access, run configure_firewall.bat as Administrator." & vbCrLf & vbCrLf & "If the app won't start, run debug_launch.bat to see error messages.", vbInformation, "Installation Complete"
+          MsgBox "The ${{ env.APP_NAME }} application was installed successfully.", vbInformation, "Installation Complete"
           EOF
 
       - name: Prepare SourceDir
@@ -292,15 +150,21 @@ jobs:
               <Feature Id="MainFeature" Title="Main App" Level="1">
                 <ComponentGroupRef Id="StreamlitExeFiles"/>
                 <ComponentRef Id="DesktopShortcutComponent"/>
+                <ComponentRef Id="FirewallRuleComponent"/>
               </Feature>
               <Component Id="DesktopShortcutComponent" Guid="B1110000-0000-0000-0000-000000000001" Directory="DesktopFolder">
                 <Shortcut Id="AppShortcut" Name="${{ env.APP_NAME }}" Description="Launch" Target="[AppSubFolder]${{ env.APP_NAME }}.bat" WorkingDirectory="AppSubFolder" Icon="AppIcon"/>
                 <RegistryValue Root="HKCU" Key="Software\\${{ env.APP_NAME }}" Name="Installed" Type="integer" Value="1" KeyPath="yes"/>
               </Component>
+              <Component Id="FirewallRuleComponent" Guid="B1110000-0000-0000-0000-000000000002" Directory="AppSubFolder">
+                <RegistryValue Root="HKCU" Key="Software\\${{ env.APP_NAME }}" Name="FirewallConfigured" Type="integer" Value="1" KeyPath="yes"/>
+              </Component>
               <Icon Id="AppIcon" SourceFile="SourceDir/ms2_scanicon.ico" />
               <Binary Id="VBSMessage" SourceFile="SourceDir/ShowSuccessMessage.vbs"/>
               <CustomAction Id="ShowSuccess" BinaryKey="VBSMessage" VBScriptCall="" Execute="immediate" Return="check"/>
+              <CustomAction Id="AddFirewallRule" Directory="AppSubFolder" ExeCommand="cmd.exe /c &quot;netsh advfirewall firewall add rule name=&quot;${{ env.APP_NAME }}&quot; dir=in action=allow program=&quot;[AppSubFolder]python-${{ env.PYTHON_VERSION }}\python.exe&quot; enable=yes profile=any&quot;" Execute="deferred" Impersonate="no" Return="ignore"/>
               <InstallExecuteSequence>
+                <Custom Action="AddFirewallRule" After="InstallFiles">NOT Installed</Custom>
                 <Custom Action="ShowSuccess" After="InstallFinalize">NOT Installed</Custom>
               </InstallExecuteSequence>
               <UI>
