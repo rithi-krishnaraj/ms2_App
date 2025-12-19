@@ -32,7 +32,7 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller ms2_main.py --onefile --noconsole --name ms2_App --copy-metadata streamlit --collect-all streamlit
+          pyinstaller ms2_main.py --onefile --noconsole --name ms2_App --copy-metadata streamlit --collect-all streamlit --add-data "pages;pages"
           echo "Executable built at dist/ms2_App.exe"
 
       - name: Setup Python Embeddable Version
@@ -89,6 +89,7 @@ jobs:
         run: |
           mv python-${{ env.PYTHON_VERSION }} dist_folder/
           cp ms2_main.py dist_folder/
+          cp -r pages dist_folder/
           cp requirements-windows.txt dist_folder/
           cp README.md dist_folder/
           cp LICENSE.rtf dist_folder/
@@ -194,4 +195,3 @@ jobs:
             ${{ env.APP_NAME }}.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
