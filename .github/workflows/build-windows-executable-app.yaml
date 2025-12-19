@@ -42,6 +42,17 @@ jobs:
           unzip python-${{ env.PYTHON_VERSION }}-embed-amd64.zip -d python-${{ env.PYTHON_VERSION }}
           rm python-${{ env.PYTHON_VERSION }}-embed-amd64.zip
 
+      - name: Download and Extract tkinter for embedded Python
+        run: |
+          curl -LO https://www.python.org/ftp/python/${{ env.PYTHON_VERSION }}/python-${{ env.PYTHON_VERSION }}-amd64.exe
+          7z x python-${{ env.PYTHON_VERSION }}-amd64.exe -o"python_full"
+          cp python_full/tcl86t.dll python-${{ env.PYTHON_VERSION }}/
+          cp python_full/tk86t.dll python-${{ env.PYTHON_VERSION }}/
+          cp python_full/_tkinter.pyd python-${{ env.PYTHON_VERSION }}/
+          xcopy python_full\tcl python-${{ env.PYTHON_VERSION }}\tcl\ /E /I /Y
+          rm -rf python_full
+          rm python-${{ env.PYTHON_VERSION }}-amd64.exe
+
       - name: Install pip
         run: |
           curl -O https://bootstrap.pypa.io/get-pip.py
@@ -50,11 +61,11 @@ jobs:
 
       - name: Enable site-packages
         run: |
-          sed -i 's/#import site/import site/' python-${{ env.PYTHON_VERSION }}/python39._pth
+          (Get-Content python-${{ env.PYTHON_VERSION }}/python39._pth) -replace '#import site', 'import site' | Set-Content python-${{ env.PYTHON_VERSION }}/python39._pth
 
       - name: Install Required Packages
         run: |
-          .\python-3.9.0\python -m pip install Cython --no-warn-script-location
+          .\python-${{ env.PYTHON_VERSION }}\python -m pip install Cython --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install numpy --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install -r requirements-windows.txt --no-warn-script-location
           .\python-${{ env.PYTHON_VERSION }}\python -m pip install massql --no-warn-script-location
