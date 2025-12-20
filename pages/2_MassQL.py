@@ -3,7 +3,6 @@ import pandas as pd
 from massql import msql_parser
 from massql import msql_engine
 import os
-import easygui
 from pathlib import Path
 import requests
 import io
@@ -47,31 +46,25 @@ if zip_bytes:
         mime="application/zip"
     )
 
-# Folder selection using easygui
-if st.sidebar.button("📂 Choose Folder"):
-    folder_path = easygui.diropenbox(title="Select a folder with mass spec files")
-    if folder_path:
-        st.session_state['selected_folder'] = folder_path
+# File uploader for multiple files
+uploaded_files = st.sidebar.file_uploader(
+    "Upload mass spec files",
+    type=['mzml', 'mzxml', 'mgf', 'msp'],
+    accept_multiple_files=True,
+    help="Select one or more mass spectrometry data files"
+)
 
-# Show selected folder
-folder_path = st.session_state.get('selected_folder', None)
-if folder_path:
-    st.sidebar.success(f"Selected folder:\n{folder_path}")
-
-    # List valid files in the folder
-    valid_exts = ('.mzml', '.mzxml', '.mgf', '.msp')
-    files = [str(f) for f in Path(folder_path).glob("*") if f.suffix.lower() in valid_exts]
-
-    if files:
-        selected_files = st.sidebar.multiselect(
-            "Select data files",
-            options=files,
-            default=files[:1],  # Optionally pre-select the first file
-            format_func=lambda x: os.path.basename(x)
-        )
-    else:
-        st.sidebar.warning("No valid mass spec files found in this folder.")
-        selected_files = []
+# Process uploaded files
+if uploaded_files:
+    st.sidebar.success(f"📁 {len(uploaded_files)} file(s) uploaded")
+    
+    # Show uploaded file names
+    with st.sidebar.expander("View uploaded files"):
+        for file in uploaded_files:
+            st.write(f"✓ {file.name}")
+    
+    # Store uploaded files for processing
+    selected_files = uploaded_files
 else:
     selected_files = []
 
@@ -137,15 +130,19 @@ if search_button and selected_files and query:
         try:
             results_container = st.container()
             
-            for file_path in selected_files:
+            for uploaded_file in selected_files:
                 with results_container:
-                    st.subheader(f"📄 {os.path.basename(file_path)}")
+                    st.subheader(f"📄 {uploaded_file.name}")
                     
-                    try:                        
+                    try:
+                        # Save uploaded file to temporary location
+                        temp_path = Path(f"temp_{uploaded_file.name}")
+                        temp_path.write_bytes(uploaded_file.read())
+                        
                         # Execute query directly without parsing separately
                         results = msql_engine.process_query(
                             query,  # Pass query string directly
-                            str(file_path)
+                            str(temp_path)
                         )
                         
                         # Check if results exist (results is already a DataFrame)
@@ -165,11 +162,15 @@ if search_button and selected_files and query:
                             st.download_button(
                                 label="📥 Download Results as CSV",
                                 data=csv,
-                                file_name=f"massql_results_{os.path.basename(file_path)}.csv",
+                                file_name=f"massql_results_{uploaded_file.name}.csv",
                                 mime="text/csv"
                             )
                         else:
                             st.warning("No matching spectra found")
+                        
+                        # Clean up temporary file
+                        if temp_path.exists():
+                            temp_path.unlink()
                             
                     except Exception as e:
                         error_msg = str(e)
@@ -189,7 +190,7 @@ if search_button and selected_files and query:
                         elif "process_query" in error_msg or "parse" in error_msg:
                             st.error(f"""❌ **File Processing Error**
                             
-                            Could not process the file: `{os.path.basename(file_path)}`
+                            Could not process the file: `{uploaded_file.name}`
 
                             Possible reasons:
                             - File format not supported or corrupted
@@ -197,7 +198,11 @@ if search_button and selected_files and query:
                             - File is currently open in another program""")
                                                 
                         else:
-                            st.error(f"❌ **Error processing file**: {os.path.basename(file_path)}\n\nPlease verify your query syntax and file format.")
+                            st.error(f"❌ **Error processing file**: {uploaded_file.name}\n\nPlease verify your query syntax and file format.")
+                        
+                        # Clean up temporary file on error
+                        if 'temp_path' in locals() and temp_path.exists():
+                            temp_path.unlink()
                     
                     st.divider()
                     

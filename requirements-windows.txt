@@ -8,7 +8,6 @@ requests
 pyteomics
 xlsxwriter
 lxml
-easygui
 massql
 tqdm
 numba
